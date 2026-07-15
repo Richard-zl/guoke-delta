@@ -35,6 +35,10 @@
       "style": { "navigationBarTitleText": "订单支付", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
     },
     {
+      "path": "pages/order/h5pay",
+      "style": { "navigationBarTitleText": "订单支付", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+    },
+    {
       "path": "pages/order/list",
       "style": { "navigationBarTitleText": "我的订单", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
     },

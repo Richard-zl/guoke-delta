@@ -24,6 +24,7 @@ import com.wechat.pay.java.service.payments.jsapi.model.PrepayWithRequestPayment
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -48,6 +49,21 @@ public class H5PayController {
     private final WxJsapiPayHelper wxJsapiPayHelper;
     private final ObjectProvider<JsapiServiceExtension> jsapiServiceExtensionProvider;
     private final ObjectProvider<WxPayConfiguration> wxPayConfigurationProvider;
+
+    /**
+     * 独立于受 wx.pay.enabled 约束的 {@link WxPayConfiguration}：H5 网页授权跳转（snsapi_base）
+     * 只需要服务号 appid，不依赖支付证书是否配置，与 {@link MpOAuthService} 保持一致的读取方式。
+     */
+    @Value("${wx.mp.appid:}")
+    private String mpAppId;
+
+    /** 供 H5 页拼接微信网页授权跳转链接使用；未配置时返回空串，前端据此提示联系客服 */
+    @GetMapping("/mp-appid")
+    public R<Map<String, String>> mpAppId() {
+        Map<String, String> data = new HashMap<>();
+        data.put("appId", mpAppId == null ? "" : mpAppId);
+        return R.ok(data);
+    }
 
     @PostMapping("/oauth")
     public R<Map<String, String>> oauth(@RequestBody H5OauthRequest request) {

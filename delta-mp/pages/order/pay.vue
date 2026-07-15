@@ -24,7 +24,7 @@
     <view class="pay-methods">
       <view v-if="canUseWechatPay" class="method" :class="{ active: payType === 'WECHAT' }" @click="payType='WECHAT'">
         <image class="method-icon" src="/static/icons/钞票.svg" mode="aspectFit" />
-        <text class="method-name">微信支付</text>
+        <text class="method-name">联系客服支付</text>
         <view class="radio" :class="{ checked: payType === 'WECHAT' }" />
       </view>
       <view class="method" :class="{ active: payType === 'BALANCE' }" @click="payType='BALANCE'">
@@ -37,7 +37,7 @@
       </view>
     </view>
 
-    <view class="btn-pay" :class="{ disabled: expired }" @click="handlePay">确认支付</view>
+    <view class="btn-pay" :class="{ disabled: expired || submitting }" @click="handlePay">{{ submitting ? '处理中...' : '确认支付' }}</view>
   </view>
 </template>
 
@@ -45,12 +45,15 @@
 import { ref, computed, onUnmounted } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import PriceText from '@/components/PriceText.vue'
-import { createPayment, balancePay } from '@/api/pay'
+import { balancePay, getPayKfToken } from '@/api/pay'
 import { getOrderDetail } from '@/api/order'
 import { getWallet } from '@/api/user'
 import { requestOrderSubscribe } from '@/utils/subscribe'
 import { isMpWeixin } from '@/utils/platform'
 import { blockIfUnderReview } from '@/composables/useAuditGuard'
+import { useWeworkCs } from '@/composables/useWeworkCs'
+
+const { openWeworkCs } = useWeworkCs()
 
 const orderId = ref(0)
 const finalAmount = ref(0)
@@ -61,6 +64,7 @@ const payType = ref(canUseWechatPay ? 'WECHAT' : 'BALANCE')
 const walletBalance = ref('0.00')
 const countdown = ref(0)
 const expired = ref(false)
+const submitting = ref(false)
 let timer = null
 
 const formatCountdown = computed(() => {
@@ -141,9 +145,11 @@ function handleOrderNotPending(status) {
 onUnmounted(() => { if (timer) clearInterval(timer) })
 
 async function handlePay() {
+  if (submitting.value) return
   if (expired.value) return uni.showToast({ title: '订单已超时', icon: 'none' })
   await requestOrderSubscribe()
 
+  submitting.value = true
   try {
     if (payType.value === 'BALANCE') {
       // 优惠券已在下单时绑定，支付接口不再传 couponId
@@ -152,25 +158,11 @@ async function handlePay() {
       setTimeout(() => uni.redirectTo({ url: `/pages/order/detail?id=${orderId.value}` }), 1500)
     } else {
       if (!canUseWechatPay) {
-        return uni.showToast({ title: 'H5暂未接入在线支付，请使用余额支付', icon: 'none' })
+        return uni.showToast({ title: '请使用余额支付', icon: 'none' })
       }
-      const res = await createPayment(orderId.value)
-      const payParams = res.data
-      uni.requestPayment({
-        provider: 'wxpay',
-        timeStamp: payParams.timeStamp,
-        nonceStr: payParams.nonceStr,
-        package: payParams.package,
-        signType: payParams.signType || 'RSA',
-        paySign: payParams.paySign,
-        success() {
-          uni.showToast({ title: '支付成功' })
-          setTimeout(() => uni.redirectTo({ url: `/pages/order/detail?id=${orderId.value}` }), 1500)
-        },
-        fail() {
-          uni.showToast({ title: '支付取消', icon: 'none' })
-        }
-      })
+      // 小程序支付能力受限，微信支付改为「联系客服」：签发 payToken → 客服会话自动推送 H5 支付链接
+      const res = await getPayKfToken(orderId.value)
+      await openWeworkCs({ scene: 'pay', payToken: res.data.token, order: { id: orderId.value } })
     }
   } catch (e) {
     if (e && e.code === 4010) {
@@ -178,6 +170,8 @@ async function handlePay() {
     } else {
       uni.showToast({ title: e?.msg || '支付失败', icon: 'none' })
     }
+  } finally {
+    submitting.value = false
   }
 }
 

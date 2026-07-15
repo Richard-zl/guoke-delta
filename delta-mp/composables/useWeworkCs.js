@@ -6,7 +6,8 @@ import { ORDER_STATUS_TEXT } from '@/utils/constants'
 const SCENE_TITLE = {
   general: '联系客服',
   product: '咨询商品',
-  complaint: '投诉反馈'
+  complaint: '投诉反馈',
+  pay: '订单支付'
 }
 
 /**
@@ -56,11 +57,22 @@ export function useWeworkCs() {
     modalState.visible = true
   }
 
-  /** 打开企微客服（API 优先，失败或未配置时降级二维码） */
-  async function openWeworkCs({ scene = 'general', order, product } = {}) {
+  /**
+   * 打开企微客服（API 优先，失败或未配置时降级二维码）。
+   * `scene: 'pay'`（订单支付引导至客服）时禁止二维码降级：二维码无法透传 scene_param，
+   * 机器人侧收不到 payToken 就发不出支付链接，因此唤起失败/未配置 API 时只能提示重试。
+   * `payToken` 会以 `scene_param` 追加到 `csServiceUrl`，供客服回调侧识别订单。
+   */
+  async function openWeworkCs({ scene = 'general', order, product, payToken } = {}) {
     const { csContactMode, csCorpId, csServiceUrl, csQrcodeUrl } = siteStore
     const tryApi = (csContactMode === 'wework' || csContactMode === 'auto')
       && csCorpId && csServiceUrl
+
+    let serviceUrl = csServiceUrl
+    if (payToken && serviceUrl) {
+      const sep = serviceUrl.includes('?') ? '&' : '?'
+      serviceUrl = `${serviceUrl}${sep}scene_param=${encodeURIComponent(payToken)}`
+    }
 
     // #ifdef MP-WEIXIN
     if (tryApi) {
@@ -68,7 +80,7 @@ export function useWeworkCs() {
         await new Promise((resolve, reject) => {
           const opts = {
             corpId: csCorpId,
-            extInfo: { url: csServiceUrl },
+            extInfo: { url: serviceUrl },
             success: resolve,
             fail: reject
           }
@@ -81,6 +93,10 @@ export function useWeworkCs() {
         })
         return
       } catch (e) {
+        if (scene === 'pay') {
+          uni.showToast({ title: '客服暂时不可用，请稍后重试', icon: 'none' })
+          return
+        }
         if (csContactMode === 'wework') {
           uni.showToast({ title: '打开客服失败，请稍后重试', icon: 'none' })
           return
@@ -88,6 +104,11 @@ export function useWeworkCs() {
       }
     }
     // #endif
+
+    if (scene === 'pay') {
+      uni.showToast({ title: '客服暂时不可用，请稍后重试', icon: 'none' })
+      return
+    }
 
     if (!csQrcodeUrl) {
       uni.showToast({ title: '客服配置中，请稍后再试', icon: 'none' })
