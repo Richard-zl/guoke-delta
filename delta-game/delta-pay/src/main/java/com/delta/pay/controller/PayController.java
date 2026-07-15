@@ -12,6 +12,7 @@ import com.delta.pay.entity.Transaction;
 import com.delta.pay.service.PayTokenService;
 import com.delta.pay.service.PaymentService;
 import com.delta.pay.service.TransactionService;
+import com.delta.pay.service.WxJsapiPayHelper;
 import com.delta.order.entity.Order;
 import com.delta.order.service.OrderService;
 import com.delta.user.entity.User;
@@ -27,7 +28,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,6 +43,7 @@ public class PayController {
     private final ObjectProvider<JsapiServiceExtension> jsapiServiceExtensionProvider;
     private final ObjectProvider<WxPayConfiguration> wxPayConfigurationProvider;
     private final UserService userService;
+    private final WxJsapiPayHelper wxJsapiPayHelper;
 
     @Value("${pay.kf.token-ttl-seconds:900}")
     private long payTokenTtlSeconds;
@@ -63,7 +64,7 @@ public class PayController {
         String description = (order != null && order.getProductName() != null && !order.getProductName().isEmpty())
                 ? order.getProductName() : "订单支付";
         try {
-            PrepayWithRequestPaymentResponse response = createPrepayOrder(jsapiServiceExtension, wxPayConfiguration,
+            PrepayWithRequestPaymentResponse response = wxJsapiPayHelper.createPrepayOrder(jsapiServiceExtension, wxPayConfiguration,
                     payment, wxPayConfiguration.getAppId(), user.getOpenid(), description);
 
             payment.setWxPrepayId(response.getPackageVal().replace("prepay_id=", ""));
@@ -110,7 +111,7 @@ public class PayController {
             return R.fail("用户信息不完整，无法发起支付");
         }
         try {
-            PrepayWithRequestPaymentResponse response = createPrepayOrder(jsapiServiceExtension, wxPayConfiguration,
+            PrepayWithRequestPaymentResponse response = wxJsapiPayHelper.createPrepayOrder(jsapiServiceExtension, wxPayConfiguration,
                     payment, wxPayConfiguration.getAppId(), user.getOpenid(), "打手入驻押金");
             payment.setWxPrepayId(response.getPackageVal().replace("prepay_id=", ""));
             payment.setPayChannel("MINIAPP");
@@ -182,30 +183,5 @@ public class PayController {
         data.put("token", token);
         data.put("expireSeconds", payTokenTtlSeconds);
         return R.ok(data);
-    }
-
-    private PrepayWithRequestPaymentResponse createPrepayOrder(JsapiServiceExtension jsapiServiceExtension,
-                                                               WxPayConfiguration wxPayConfiguration,
-                                                               Payment payment,
-                                                               String appid,
-                                                               String openid,
-                                                               String description) {
-        PrepayRequest request = new PrepayRequest();
-        request.setAppid(appid);
-        request.setMchid(wxPayConfiguration.getMchId());
-        request.setDescription(description);
-        request.setOutTradeNo(payment.getPaymentNo());
-        request.setNotifyUrl(wxPayConfiguration.getNotifyUrl());
-
-        Amount amount = new Amount();
-        amount.setTotal(payment.getAmount().multiply(new BigDecimal("100")).intValue());
-        amount.setCurrency("CNY");
-        request.setAmount(amount);
-
-        Payer payer = new Payer();
-        payer.setOpenid(openid);
-        request.setPayer(payer);
-
-        return jsapiServiceExtension.prepayWithRequestPayment(request);
     }
 }

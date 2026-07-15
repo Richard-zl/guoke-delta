@@ -42,6 +42,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/user/auth/**", "/player/auth/**", "/cs/auth/**").permitAll()
                 .requestMatchers("/pay/wx/notify").permitAll()
+                .requestMatchers("/pay/wxkf/callback").permitAll()
+                .requestMatchers("/pay/h5/**").permitAll()
                 .requestMatchers("/maintenance/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/file/**", "/common/file/**").permitAll()
