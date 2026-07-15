@@ -1,0 +1,21 @@
+# Build / deps
+**/target/
+**/node_modules/
+**/unpackage/
+**/dist/
+**/.idea/
+**/.vscode/
+**/*.iml
+**/.DS_Store
+
+# Logs & local
+**/*.log
+delta-game/logs/
+.env
+.env.*
+
+# SDD scratch (keep progress locally)
+.superpowers/sdd/*.brief.md
+.superpowers/sdd/*-diff.txt
+.superpowers/sdd/*-report.md
+!.superpowers/sdd/progress.md
