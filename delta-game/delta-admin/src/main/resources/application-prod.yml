@@ -1,0 +1,128 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: delta-game
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/delta_game?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: delta_game
+    password: GNN8MMWy4ynaWSWH
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      database: 0
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# AES encryption
+aes:
+  key: delta-game-aes-128bit!
+
+# JWT
+jwt:
+  secret: delta-game-jwt-secret-key-2024-must-be-at-least-256-bits-long-for-hs256
+  expiration: 259200000
+
+# WeChat Mini Program
+wx:
+  miniapp:
+    # 小程序appid
+    appid: wx57e6dbce98e9810f
+    # 小程序secret
+    secret: 30b44841a835fb8e1a1d33ab98231271
+    # 是否开启微信小程序登录（新增加）
+    enabled: true
+    subscribe-template:
+      # 订单状态变更通知（模板字段：phrase4/character_string1/thing2/amount3；场景：支付成功、被接单、已取消、已退款、被指派、打手标记完成、仲裁结果）
+      order-status: uZ_8iKE-BYlFuLdObA_2ceUxrg9CCgLAmeNxm51Q-Uo
+      # 收入到账通知（覆盖：收入结算到账、提现处理结果）
+      income: YOUR_TEMPLATE_ID_INCOME
+      # 组队邀请通知（覆盖：队友被邀请）
+      team-invite: YOUR_TEMPLATE_ID_TEAM_INVITE
+      # 订单确认通知（覆盖：用户确认完成）
+      order-confirm: 
+  pay:
+    enabled: true
+    # 商户号
+    mch-id: 1746830539
+    notify-url: https://guokegames.online/api/pay/wx/notify
+    # 微信支付V3 API密钥(自己设置的密钥)
+    api-v3-key: Ygbx1122334455667788990000000000
+    # 微信支付私钥（你从商户平台下载的私钥文件路径，apiclient_key.pem）
+    private-key-path: /www/certs/apiclient_key.pem
+    # 微信支付证书序列号（商户平台“API 安全”页面展示的证书序列号）
+    cert-serial-no: 7706AA69B5C2038EFDAC91BC33A75AB826547D65
+    # 微信支付公钥（你从商户平台下载的公钥文件路径，pub_key.pem）
+    public-key-path: /www/certs/pub_key.pem
+    # 微信支付公钥ID（商户平台“微信支付公钥”页面展示的ID）
+    public-key-id: PUB_KEY_ID_0117468305392026061100211600001601
+  mp:
+    appid: ""
+    secret: ""
+  kf:
+    corp-id: ""
+    secret: ""
+    callback-token: ""
+    callback-aes-key: ""
+
+pay:
+  kf:
+    token-secret: "CHANGE_ME_TO_RANDOM_32+"
+    token-ttl-seconds: 900
+    h5-pay-base-url: "https://YOUR_H5_HOST/#/pages/order/h5pay"
+
+# File upload（生产环境，Linux 服务器）
+file:
+  upload:
+    path: /www/data/upload
+    url-prefix: https://guokegames.online/file/
+
+# Settlement
+delta:
+  settlement:
+    commission-rate: 0.2
+
+# Logging
+logging:
+  level:
+    com.delta: debug
+    org.springframework.security: info
+
+# Knife4j Swagger
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+  packages-to-scan: com.delta
+  paths-to-match: "/**"
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+    swagger-model-name: 实体类

@@ -1,0 +1,75 @@
+/* ==================== 主题色 ==================== */
+$primary-color: #6366f1;
+$primary-light: #818cf8;
+$primary-dark: #4f46e5;
+$success-color: #10b981;
+$warning-color: #f59e0b;
+$danger-color: #ef4444;
+$info-color: #94a3b8;
+
+/* ==================== 渐变 ==================== */
+$gradient-primary: linear-gradient(135deg, #6366f1, #8b5cf6);
+$gradient-accent: linear-gradient(135deg, #ff6b2b, #ff8f5e);
+$gradient-cool: linear-gradient(135deg, #6366f1, #06b6d4);
+$gradient-hero: linear-gradient(135deg, #312e81, #4f46e5);
+
+/* ==================== 文字色 ==================== */
+$text-color: #1e293b;
+$text-color-secondary: #64748b;
+$text-color-placeholder: #94a3b8;
+$text-color-disabled: #cbd5e1;
+
+/* ==================== 背景色 ==================== */
+$bg-color: #ffffff;
+$bg-color-page: #f1f5f9;
+$bg-color-hover: rgba(99, 102, 241, 0.04);
+$bg-color-mask: rgba(15, 23, 42, 0.6);
+
+/* ==================== 强调色 ==================== */
+$accent: #ff6b2b;
+$accent-light: #ff8f5e;
+$accent-dark: #ea580c;
+
+/* ==================== 卡片 ==================== */
+$card-bg: #ffffff;
+$card-bg-solid: #ffffff;
+
+/* ==================== 边框 ==================== */
+$border-color: #e2e8f0;
+$border-color-light: #f1f5f9;
+$border-radius-sm: 8rpx;
+$border-radius: 16rpx;
+$border-radius-lg: 24rpx;
+$border-radius-round: 999rpx;
+
+/* ==================== 字号 ==================== */
+$font-size-xs: 20rpx;
+$font-size-sm: 24rpx;
+$font-size-base: 28rpx;
+$font-size-md: 30rpx;
+$font-size-lg: 32rpx;
+$font-size-xl: 36rpx;
+$font-size-xxl: 40rpx;
+
+/* ==================== 间距 ==================== */
+$spacing-xs: 8rpx;
+$spacing-sm: 16rpx;
+$spacing-base: 24rpx;
+$spacing-md: 32rpx;
+$spacing-lg: 40rpx;
+$spacing-xl: 48rpx;
+
+/* ==================== 订单状态颜色 ==================== */
+$status-pending-pay: #f59e0b;
+$status-paid: #6366f1;
+$status-assigned: #a855f7;
+$status-accepted: #6366f1;
+$status-in-progress: #06b6d4;
+$status-completed: #10b981;
+$status-confirmed: #10b981;
+$status-cancelled: #94a3b8;
+$status-refunded: #ef4444;
+$status-dispute: #ef4444;
+
+/* ==================== tabBar高度 ==================== */
+$tabbar-height: 110rpx;

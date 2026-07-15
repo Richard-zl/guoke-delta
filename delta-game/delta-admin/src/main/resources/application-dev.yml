@@ -1,0 +1,125 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: delta-game
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/delta_game?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      database: 0
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# AES encryption
+aes:
+  key: delta-game-aes-128bit!
+
+# JWT
+jwt:
+  secret: delta-game-jwt-secret-key-2024-must-be-at-least-256-bits-long-for-hs256
+  expiration: 259200000
+
+auth:
+  h5:
+    login-code: 123456
+
+# WeChat Mini Program
+wx:
+  miniapp:
+    enabled: false
+    appid: wx94531abaf63a4df6
+    secret: b8fad52f2be75944e3e04559aa757e61
+    subscribe-template:
+      # 订单状态变更通知（模板字段：phrase4/character_string1/thing2/amount3；场景：支付成功、被接单、已取消、已退款、被指派、打手标记完成、仲裁结果）
+      order-status: sUrc4cGcXvz5Mi59q3b0Jp8jmNt9CGWd2_-pc0jiwGs
+      # 收入到账通知（覆盖：收入结算到账、提现处理结果）
+      income: YOUR_TEMPLATE_ID_INCOME
+      # 组队邀请通知（覆盖：队友被邀请）
+      team-invite: YOUR_TEMPLATE_ID_TEAM_INVITE
+      # 订单确认通知（覆盖：用户确认完成）
+      order-confirm: YOUR_TEMPLATE_ID_ORDER_CONFIRM
+  pay:
+    enabled: false
+    mch-id: 1712209114
+    notify-url: https://xxxxxx.cn/api/pay/wx/notify
+    api-v3-key: 1518366830815183668308abcABCabca
+    private-key-path: C:\Users\Administrator\Desktop\delta\1712209114_20260304_cert\apiclient_key.pem
+    cert-serial-no: 1ECC4A4185ACE3AD988D0A29BF8AFFA559F986C2
+    # 微信支付公钥（你从商户平台下载的公钥文件路径，pub_key.pem）
+    public-key-path: C:\Users\Administrator\Desktop\delta\1712209114_20260304_cert\pub_key.pem
+    # 微信支付公钥ID（商户平台“微信支付公钥”页面展示的ID）
+    public-key-id: PUB_KEY_ID_0117122091142025032800298600002866
+  mp:
+    appid: ""          # 服务号 appid
+    secret: ""         # 服务号 secret（网页授权）
+  kf:
+    corp-id: ""
+    secret: ""
+    callback-token: ""
+    callback-aes-key: ""
+
+pay:
+  kf:
+    token-secret: "CHANGE_ME_TO_RANDOM_32+"
+    token-ttl-seconds: 900
+    h5-pay-base-url: "https://YOUR_H5_HOST/#/pages/order/h5pay"
+
+# File upload（本地开发环境，Windows）
+file:
+  upload:
+    path: D:/data/upload
+    url-prefix: http://localhost:8080/file/
+
+# Settlement
+delta:
+  settlement:
+    commission-rate: 0.2
+
+# Logging
+logging:
+  level:
+    com.delta: debug
+    org.springframework.security: info
+
+# Knife4j Swagger
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+  packages-to-scan: com.delta
+  paths-to-match: "/**"
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+    swagger-model-name: 实体类

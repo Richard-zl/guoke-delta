@@ -1,0 +1,298 @@
+{
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "电竞",
+    "navigationBarBackgroundColor": "#f1f5f9",
+    "backgroundColor": "#f1f5f9",
+    "backgroundColorTop": "#f1f5f9",
+    "backgroundColorBottom": "#f1f5f9",
+    "backgroundTextStyle": "dark",
+    "initialRenderingCache": "static"
+  },
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": { "navigationBarTitleText": "首页", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+    },
+    {
+      "path": "pages/category/index",
+      "style": { "navigationBarTitleText": "分类", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+    },
+    {
+      "path": "pages/product/list",
+      "style": { "navigationBarTitleText": "商品列表", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+    },
+    {
+      "path": "pages/product/detail",
+      "style": { "navigationBarTitleText": "商品详情", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+    },
+    {
+      "path": "pages/order/create",
+      "style": { "navigationBarTitleText": "确认订单", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+    },
+    {
+      "path": "pages/order/pay",
+      "style": { "navigationBarTitleText": "订单支付", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+    },
+    {
+      "path": "pages/order/list",
+      "style": { "navigationBarTitleText": "我的订单", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+    },
+    {
+      "path": "pages/order/detail",
+      "style": { "navigationBarTitleText": "订单详情", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+    },
+    {
+      "path": "pages/review/create",
+      "style": { "navigationBarTitleText": "评价", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+    },
+    {
+      "path": "pages/wallet/index",
+      "style": { "navigationBarTitleText": "我的钱包", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+    },
+    {
+      "path": "pages/mine/index",
+      "style": { "navigationBarTitleText": "我的", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+    },
+    {
+      "path": "pages/mine/profile",
+      "style": { "navigationBarTitleText": "编辑资料", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+    },
+    {
+      "path": "pages/chat/list",
+      "style": { "navigationBarTitleText": "消息", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+    },
+    {
+      "path": "pages/chat/room",
+      "style": { "navigationBarTitleText": "聊天", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+    },
+    {
+      "path": "pages/message/index",
+      "style": { "navigationBarTitleText": "系统通知", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+    },
+    {
+      "path": "pages/agreement/user",
+      "style": { "navigationBarTitleText": "用户协议", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+    },
+    {
+      "path": "pages/agreement/privacy",
+      "style": { "navigationBarTitleText": "隐私政策", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+    },
+    {
+      "path": "pages/login/index",
+      "style": { "navigationBarTitleText": "登录", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+    },
+    {
+      "path": "pages/mine/coupon-list",
+      "style": {
+        "navigationBarTitleText": "我的优惠券",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f1f5f9",
+        "backgroundColorTop": "#f1f5f9",
+        "backgroundColorBottom": "#f1f5f9"
+      }
+    },
+    {
+      "path": "pages/mine/points-detail",
+      "style": {
+        "navigationBarTitleText": "我的积分",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f1f5f9",
+        "backgroundColorTop": "#f1f5f9",
+        "backgroundColorBottom": "#f1f5f9"
+      }
+    },
+    {
+      "path": "pages/audit/article-detail",
+      "style": {
+        "navigationBarTitleText": "资讯详情",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f1f5f9",
+        "backgroundColorTop": "#f1f5f9",
+        "backgroundColorBottom": "#f1f5f9"
+      }
+    }
+  ],
+  "subPackages": [
+    {
+      "root": "pages-player",
+      "pages": [
+        {
+          "path": "apply/index",
+          "style": { "navigationBarTitleText": "申请入驻", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "hall/index",
+          "style": { "navigationBarTitleText": "接单大厅", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "order/list",
+          "style": { "navigationBarTitleText": "我的订单", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "order/detail",
+          "style": { "navigationBarTitleText": "订单详情", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "order/progress",
+          "style": { "navigationBarTitleText": "提交进度", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "invite/list",
+          "style": { "navigationBarTitleText": "邀请列表", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "invite/teammate",
+          "style": { "navigationBarTitleText": "邀请队友", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "chat/list",
+          "style": { "navigationBarTitleText": "消息", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "chat/room",
+          "style": { "navigationBarTitleText": "聊天", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "earnings/index",
+          "style": { "navigationBarTitleText": "我的收益", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "earnings/detail",
+          "style": { "navigationBarTitleText": "收益明细", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "withdraw/index",
+          "style": { "navigationBarTitleText": "提现", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "withdraw/list",
+          "style": { "navigationBarTitleText": "提现记录", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "withdraw/detail",
+          "style": { "navigationBarTitleText": "提现详情", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "account/list",
+          "style": { "navigationBarTitleText": "提现账户", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "account/edit",
+          "style": { "navigationBarTitleText": "编辑账户", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "review/list",
+          "style": { "navigationBarTitleText": "我的评价", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "mine/index",
+          "style": { "navigationBarTitleText": "接单员中心", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        }
+      ]
+    },
+    {
+      "root": "pages-cs",
+      "pages": [
+        {
+          "path": "dashboard/index",
+          "style": { "navigationBarTitleText": "客服工作台", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "order/list",
+          "style": { "navigationBarTitleText": "订单管理", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "order/detail",
+          "style": { "navigationBarTitleText": "订单详情", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "order/assign",
+          "style": { "navigationBarTitleText": "指派接单员", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "complaint/list",
+          "style": { "navigationBarTitleText": "投诉管理", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "relay/list",
+          "style": { "navigationBarTitleText": "接力审核", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "replace/list",
+          "style": { "navigationBarTitleText": "换人审核", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "complaint/handle",
+          "style": { "navigationBarTitleText": "处理投诉", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "user/list",
+          "style": { "navigationBarTitleText": "用户管理", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "player/list",
+          "style": { "navigationBarTitleText": "接单员管理", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "player/audit",
+          "style": { "navigationBarTitleText": "接单员审核", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "withdraw/list",
+          "style": { "navigationBarTitleText": "提现审核", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "withdraw/handle",
+          "style": { "navigationBarTitleText": "处理提现", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "product/list",
+          "style": { "navigationBarTitleText": "商品管理", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "product/edit",
+          "style": { "navigationBarTitleText": "编辑商品", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "category/list",
+          "style": { "navigationBarTitleText": "分类管理", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "mine/index",
+          "style": { "navigationBarTitleText": "客服中心", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "profile/edit",
+          "style": { "navigationBarTitleText": "编辑资料", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "chat/list",
+          "style": { "navigationBarTitleText": "客服消息", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "chat/room",
+          "style": { "navigationBarTitleText": "聊天", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "quick-reply/index",
+          "style": { "navigationBarTitleText": "快捷发言管理", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        }
+      ]
+    }
+  ],
+  "tabBar": {
+    "custom": true,
+    "color": "#94a3b8",
+    "selectedColor": "#ff4544",
+    "borderStyle": "black",
+    "backgroundColor": "#ffffff",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页" },
+      { "pagePath": "pages/category/index", "text": "分类" },
+      { "pagePath": "pages/order/list", "text": "订单" },
+      { "pagePath": "pages/chat/list", "text": "消息" },
+      { "pagePath": "pages/mine/index", "text": "我的" }
+    ]
+  }
+}
