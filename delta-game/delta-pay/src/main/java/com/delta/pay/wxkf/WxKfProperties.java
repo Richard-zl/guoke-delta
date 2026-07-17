@@ -18,4 +18,9 @@ public class WxKfProperties {
     private String callbackToken = "";
     /** 回调消息加解密 EncodingAESKey（43位） */
     private String callbackAesKey = "";
+    /**
+     * 微信客服账号 open_kfid（回调日志 / 企微后台可见）。
+     * 用于调用 add_contact_way 生成带 enc_scene 的链接；否则 scene_param 不会回传。
+     */
+    private String openKfid = "";
 }

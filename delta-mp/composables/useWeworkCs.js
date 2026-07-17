@@ -63,15 +63,44 @@ export function useWeworkCs() {
    * 机器人侧收不到 payToken 就发不出支付链接，因此唤起失败/未配置 API 时只能提示重试。
    * `payToken` 会以 `scene_param` 追加到 `csServiceUrl`，供客服回调侧识别订单。
    */
-  async function openWeworkCs({ scene = 'general', order, product, payToken } = {}) {
+  /**
+   * @param {string} [serviceUrl] 支付场景优先用后端 /pay/kf/token 返回的带 enc_scene 链接；
+   *   后台手工配置的 cs_service_url 往往不支持 scene_param 回传。
+   */
+  async function openWeworkCs({ scene = 'general', order, product, payToken, serviceUrl: apiServiceUrl } = {}) {
     const { csContactMode, csCorpId, csServiceUrl, csQrcodeUrl } = siteStore
+    let serviceUrl = apiServiceUrl || csServiceUrl || ''
     const tryApi = (csContactMode === 'wework' || csContactMode === 'auto')
-      && csCorpId && csServiceUrl
+      && csCorpId && serviceUrl
 
-    let serviceUrl = csServiceUrl
-    if (payToken && serviceUrl) {
-      const sep = serviceUrl.includes('?') ? '&' : '?'
-      serviceUrl = `${serviceUrl}${sep}scene_param=${encodeURIComponent(payToken)}`
+    // 支付必须用后端 add_contact_way 返回的带 enc_scene 链接，否则 scene_param 不会回传
+    if (scene === 'pay') {
+      if (!apiServiceUrl) {
+        console.warn('[WeworkCs] pay 场景缺少后端 serviceUrl')
+        uni.showToast({ title: '支付客服链接无效，请更新后重试', icon: 'none' })
+        return
+      }
+      if (!/[?&]enc_scene=/.test(apiServiceUrl) && !/[?&]encScene=/.test(apiServiceUrl)) {
+        console.warn('[WeworkCs] pay serviceUrl 无 enc_scene', apiServiceUrl.slice(0, 80))
+        uni.showToast({ title: '支付客服链接无效(无enc_scene)', icon: 'none' })
+        return
+      }
+    }
+
+    // 后端已拼好 scene_param 则不再追加；否则兼容旧逻辑在本地拼接（可能不回传）
+    if (payToken && serviceUrl && !/[?&]scene_param=/.test(serviceUrl)) {
+      // 企微要求 scene_param URLEncode 后 ≤128；超长会导致 openCustomerServiceChat 直接 fail
+      const encoded = encodeURIComponent(payToken)
+      if (encoded.length > 128) {
+        console.warn('[WeworkCs] scene_param 超长', encoded.length)
+        if (scene === 'pay') {
+          uni.showToast({ title: '支付凭证过长，请重试', icon: 'none' })
+          return
+        }
+      } else {
+        const sep = serviceUrl.includes('?') ? '&' : '?'
+        serviceUrl = `${serviceUrl}${sep}scene_param=${encoded}`
+      }
     }
 
     // #ifdef MP-WEIXIN
@@ -84,17 +113,33 @@ export function useWeworkCs() {
             success: resolve,
             fail: reject
           }
-          if (product || order) {
+          // 支付场景不加消息卡片，与首页「联系客服」一致，减少 API 失败概率
+          if (scene !== 'pay' && (product || order)) {
             opts.showMessageCard = true
             opts.sendMessageTitle = product?.name || `订单 ${order?.orderNo || ''}`
             opts.sendMessagePath = buildMessagePath(scene, order, product)
           }
+          console.log('[WeworkCs] openCustomerServiceChat', {
+            scene,
+            corpId: csCorpId,
+            urlLen: serviceUrl.length,
+            hasEncScene: /[?&]enc_scene=/.test(serviceUrl) || /[?&]encScene=/.test(serviceUrl),
+            hasSceneParam: /[?&]scene_param=/.test(serviceUrl),
+            urlPreview: serviceUrl.replace(/scene_param=[^&]*/, 'scene_param=***')
+          })
           wx.openCustomerServiceChat(opts)
         })
         return
       } catch (e) {
+        const errMsg = e?.errMsg || e?.message || String(e)
+        console.warn('[WeworkCs] openCustomerServiceChat fail', {
+          scene, corpId: csCorpId, mode: csContactMode, errMsg, err: e
+        })
         if (scene === 'pay') {
-          uni.showToast({ title: '客服暂时不可用，请稍后重试', icon: 'none' })
+          uni.showToast({
+            title: errMsg.includes('cancel') ? '已取消' : '打开客服失败，请真机重试',
+            icon: 'none'
+          })
           return
         }
         if (csContactMode === 'wework') {
@@ -102,6 +147,12 @@ export function useWeworkCs() {
           return
         }
       }
+    } else if (scene === 'pay') {
+      console.warn('[WeworkCs] pay 场景未配置企微API', {
+        csContactMode, hasCorpId: !!csCorpId, hasServiceUrl: !!csServiceUrl
+      })
+      uni.showToast({ title: '请先在后台配置企微客服', icon: 'none' })
+      return
     }
     // #endif
 

@@ -30,6 +30,21 @@ function syncRemindPolling() {
 }
 
 onLaunch(() => {
+  // #ifdef H5
+  // 服务号 OAuth 回调：/h5/?code=...&state=payToken → 进入支付页
+  if (typeof location !== 'undefined' && location.search && location.search.includes('code=')) {
+    const params = new URLSearchParams(location.search)
+    const code = params.get('code')
+    const state = params.get('state')
+    if (code && state) {
+      const target = `/pages/order/h5pay?token=${encodeURIComponent(state)}&code=${encodeURIComponent(code)}`
+      history.replaceState(null, '', `${location.pathname}${location.hash || ''}`)
+      uni.reLaunch({ url: target })
+      return
+    }
+  }
+  // #endif
+
   setupAuditRouteInterceptor()
   const appStore = useAppStore()
   const userStore = useUserStore()

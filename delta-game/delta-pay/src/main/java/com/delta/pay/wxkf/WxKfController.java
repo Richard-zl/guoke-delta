@@ -6,6 +6,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * 微信客服回调：GET 用于企业微信后台配置时的 URL 有效性验证；POST 接收实际消息/事件通知。
  * 已在 SecurityConfig 放行 /pay/wxkf/callback（鉴权改由微信签名机制承担，见 {@link WxKfCrypt}）。
@@ -15,6 +18,12 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/pay/wxkf")
 @RequiredArgsConstructor
 public class WxKfController {
+
+    /** 解密后明文既可能是 JSON，也可能是 XML（线上实测为 XML） */
+    private static final Pattern XML_TOKEN = Pattern.compile(
+            "<Token>(?:<!\\[CDATA\\[)?(.*?)(?:]]>)?</Token>", Pattern.DOTALL);
+    private static final Pattern XML_OPEN_KF_ID = Pattern.compile(
+            "<OpenKfId>(?:<!\\[CDATA\\[)?(.*?)(?:]]>)?</OpenKfId>", Pattern.DOTALL);
 
     private final WxKfCrypt wxKfCrypt;
     private final WxKfService wxKfService;
@@ -33,11 +42,24 @@ public class WxKfController {
                                 @RequestParam String timestamp,
                                 @RequestParam String nonce,
                                 @RequestBody String body) {
+        // 只要企微推到了本机，这条日志必现；没有则说明回调 URL 未配/未验证/被 Nginx 拦
+        log.info("收到微信客服回调POST bodyLen={}", body == null ? 0 : body.length());
         try {
             String decrypted = wxKfCrypt.decryptPostBody(msgSignature, timestamp, nonce, body);
-            JsonNode node = objectMapper.readTree(decrypted);
-            String kfToken = node.path("Token").asText(null);
-            String openKfId = node.path("OpenKfId").asText(null);
+            String kfToken = null;
+            String openKfId = null;
+            String trimmed = decrypted == null ? "" : decrypted.trim();
+            if (trimmed.startsWith("<")) {
+                // 解密结果为 XML：<Token>/<OpenKfId>
+                kfToken = matchGroup(XML_TOKEN, trimmed);
+                openKfId = matchGroup(XML_OPEN_KF_ID, trimmed);
+            } else {
+                // 官方文档示例为 JSON
+                JsonNode node = objectMapper.readTree(trimmed);
+                kfToken = textOrNull(node, "Token");
+                openKfId = textOrNull(node, "OpenKfId");
+            }
+            log.info("客服回调解密成功 OpenKfId={}, hasToken={}", openKfId, kfToken != null && !kfToken.isBlank());
             if (kfToken == null || openKfId == null) {
                 log.warn("客服回调解密内容缺少Token/OpenKfId: {}", decrypted);
                 return "success";
@@ -48,5 +70,19 @@ public class WxKfController {
             log.error("处理微信客服回调失败", e);
         }
         return "success";
+    }
+
+    private static String textOrNull(JsonNode node, String field) {
+        String v = node.path(field).asText(null);
+        return (v == null || v.isBlank()) ? null : v;
+    }
+
+    private static String matchGroup(Pattern pattern, String text) {
+        Matcher m = pattern.matcher(text);
+        if (!m.find()) {
+            return null;
+        }
+        String v = m.group(1);
+        return (v == null || v.isBlank()) ? null : v.trim();
     }
 }

@@ -80,19 +80,21 @@ wx:
     # 微信支付公钥ID（商户平台“微信支付公钥”页面展示的ID）
     public-key-id: PUB_KEY_ID_0117468305392026061100211600001601
   mp:
-    appid: ""
-    secret: ""
+    appid: "wxb3f543d8d0fca6b7"
+    secret: "773f55b4040018b44c6fbe0201d041bb"
   kf:
-    corp-id: ""
-    secret: ""
-    callback-token: ""
-    callback-aes-key: ""
+    corp-id: "ww708dea570e1580cf"
+    secret: "UKqcKyw52xYtcHePgS-Sj4GrCq6ChyRpgbClQ_R-1Uc"
+    callback-token: "o6dUDhRZASkmoTBXNMWPFAsRQpw0o4"
+    callback-aes-key: "bmeT4OBtil4Vys83IVDNdC9uQ0uG2Lisb9R0OVMjVzc"
+    # 回调日志里的 OpenKfId；add_contact_way 生成可透传 scene_param 的支付客服链接
+    open-kfid: "wkWiUwMgAAvNIUa7W6t_tSSbAMpH2MwQ"
 
 pay:
   kf:
     token-secret: "CHANGE_ME_TO_RANDOM_32+"
     token-ttl-seconds: 900
-    h5-pay-base-url: "https://YOUR_H5_HOST/#/pages/order/h5pay"
+    h5-pay-base-url: "https://guokegames.online/h5/#/pages/order/h5pay"
 
 # File upload（生产环境，Linux 服务器）
 file:

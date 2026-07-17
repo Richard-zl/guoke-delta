@@ -147,11 +147,12 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 async function handlePay() {
   if (submitting.value) return
   if (expired.value) return uni.showToast({ title: '订单已超时', icon: 'none' })
-  await requestOrderSubscribe()
 
   submitting.value = true
   try {
     if (payType.value === 'BALANCE') {
+      // 余额支付前再拉订阅；联系客服路径不要先弹订阅，否则可能挡住 openCustomerServiceChat
+      await requestOrderSubscribe()
       // 优惠券已在下单时绑定，支付接口不再传 couponId
       await balancePay(orderId.value)
       uni.showToast({ title: '支付成功' })
@@ -160,9 +161,14 @@ async function handlePay() {
       if (!canUseWechatPay) {
         return uni.showToast({ title: '请使用余额支付', icon: 'none' })
       }
-      // 小程序支付能力受限，微信支付改为「联系客服」：签发 payToken → 客服会话自动推送 H5 支付链接
+      // 小程序支付能力受限：签发 payToken + 带 enc_scene 的客服链接 → 打开客服
       const res = await getPayKfToken(orderId.value)
-      await openWeworkCs({ scene: 'pay', payToken: res.data.token, order: { id: orderId.value } })
+      const token = res.data?.token
+      const serviceUrl = res.data?.serviceUrl
+      if (!token || !serviceUrl) {
+        return uni.showToast({ title: '获取支付凭证失败', icon: 'none' })
+      }
+      await openWeworkCs({ scene: 'pay', payToken: token, serviceUrl })
     }
   } catch (e) {
     if (e && e.code === 4010) {

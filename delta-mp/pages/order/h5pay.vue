@@ -150,7 +150,11 @@ function cleanOauthQueryFromUrl() {
   history.replaceState(null, '', `${location.pathname}${newHash}`)
 }
 
-/** 轻量 snsapi_base 静默授权：回调地址仍为本页（带 token），换取服务号 openid 后无需登录态 */
+/**
+ * 轻量 snsapi_base 静默授权。
+ * 注意：微信 redirect_uri 不能带 hash，否则回调会丢路由导致白屏；
+ * 回调落到 /h5/?code&state，由 App.vue 再跳进本页（见 consumeH5OauthCallback）。
+ */
 async function redirectToOAuth() {
   try {
     const res = await h5MpAppId()
@@ -159,9 +163,7 @@ async function redirectToOAuth() {
       showError('暂无法完成支付', '服务号未配置，请联系客服')
       return
     }
-    const redirectUri = encodeURIComponent(
-      `${location.origin}${location.pathname}#/pages/order/h5pay?token=${encodeURIComponent(token.value)}`
-    )
+    const redirectUri = encodeURIComponent(`${location.origin}/h5/`)
     const authUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${appId}`
       + `&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base`
       + `&state=${encodeURIComponent(token.value)}#wechat_redirect`

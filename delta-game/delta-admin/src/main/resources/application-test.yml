@@ -84,7 +84,7 @@ pay:
   kf:
     token-secret: "CHANGE_ME_TO_RANDOM_32+"
     token-ttl-seconds: 900
-    h5-pay-base-url: "https://YOUR_H5_HOST/#/pages/order/h5pay"
+    h5-pay-base-url: "https://test.guokegames.online/h5/#/pages/order/h5pay"
 
 file:
   upload:

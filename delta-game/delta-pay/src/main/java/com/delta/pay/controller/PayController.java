@@ -13,6 +13,7 @@ import com.delta.pay.service.PayTokenService;
 import com.delta.pay.service.PaymentService;
 import com.delta.pay.service.TransactionService;
 import com.delta.pay.service.WxJsapiPayHelper;
+import com.delta.pay.wxkf.WxKfService;
 import com.delta.order.entity.Order;
 import com.delta.order.service.OrderService;
 import com.delta.user.entity.User;
@@ -40,6 +41,7 @@ public class PayController {
     private final TransactionService transactionService;
     private final OrderService orderService;
     private final PayTokenService payTokenService;
+    private final WxKfService wxKfService;
     private final ObjectProvider<JsapiServiceExtension> jsapiServiceExtensionProvider;
     private final ObjectProvider<WxPayConfiguration> wxPayConfigurationProvider;
     private final UserService userService;
@@ -179,8 +181,15 @@ public class PayController {
             return R.fail("订单状态不允许支付");
         }
         String token = payTokenService.issue(orderId, userId);
+        // 必须用 add_contact_way(scene=pay) 生成的链接，scene_param 才会在 enter_session 回传
+        String serviceUrl = wxKfService.buildPayServiceUrl(token);
+        log.info("签发客服支付凭证 orderId={}, serviceUrlHasEncScene={}, urlPreview={}",
+                orderId,
+                serviceUrl.contains("enc_scene=") || serviceUrl.contains("encScene="),
+                serviceUrl.replaceAll("scene_param=[^&]*", "scene_param=***"));
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
+        data.put("serviceUrl", serviceUrl);
         data.put("expireSeconds", payTokenTtlSeconds);
         return R.ok(data);
     }
