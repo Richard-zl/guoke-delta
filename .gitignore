@@ -14,8 +14,14 @@ delta-game/logs/
 .env
 .env.*
 
+# Superpowers 本地产物（头脑风暴会话等，勿提交）
+.superpowers/brainstorm/
+
 # SDD scratch (keep progress locally)
 .superpowers/sdd/*.brief.md
 .superpowers/sdd/*-diff.txt
 .superpowers/sdd/*-report.md
 !.superpowers/sdd/progress.md
+
+# 本地密钥/凭证（勿提交）
+密钥文档.txt
