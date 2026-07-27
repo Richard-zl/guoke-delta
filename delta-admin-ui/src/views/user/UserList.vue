@@ -40,7 +40,8 @@
         <el-table-column prop="nickname" label="昵称" width="120" />
         <el-table-column prop="phone" label="手机号" width="130" />
         <el-table-column prop="balance" label="余额" width="100"><template #default="{ row }"><span class="balance-text">¥{{ row.balance || 0 }}</span></template></el-table-column>
-        <el-table-column prop="points" label="积分" width="100"><template #default="{ row }"><span class="points-text">{{ formatPoints(row.points) }}</span></template></el-table-column>
+        <el-table-column prop="points" label="当前积分" width="100"><template #default="{ row }"><span class="points-text">{{ formatPoints(row.points) }}</span></template></el-table-column>
+        <el-table-column prop="totalPoints" label="总积分" width="100"><template #default="{ row }">{{ formatPoints(row.totalPoints) }}</template></el-table-column>
         <el-table-column prop="levelName" label="等级" width="110"><template #default="{ row }"><el-tag size="small" effect="plain">{{ row.levelName || '青铜伴星' }}</el-tag></template></el-table-column>
         <el-table-column label="优惠券" width="110">
           <template #default="{ row }">
@@ -77,7 +78,7 @@
         <el-descriptions-item label="状态"><el-tag :type="detailData.user?.status === 1 ? 'success' : 'danger'" size="small">{{ detailData.user?.status === 1 ? '正常' : '封禁' }}</el-tag></el-descriptions-item>
         <el-descriptions-item label="余额">¥{{ detailData.wallet?.balance || 0 }}</el-descriptions-item>
         <el-descriptions-item label="当前积分">{{ formatPoints(detailData.user?.points) }}</el-descriptions-item>
-        <el-descriptions-item label="累计积分">{{ formatPoints(detailData.user?.totalPoints) }}</el-descriptions-item>
+        <el-descriptions-item label="总积分">{{ formatPoints(detailData.user?.totalPoints) }}</el-descriptions-item>
         <el-descriptions-item label="会员等级">{{ detailData.user?.levelName || '青铜伴星' }}</el-descriptions-item>
         <el-descriptions-item label="可用优惠券">{{ detailCouponCount }} 张</el-descriptions-item>
         <el-descriptions-item label="等级权益" :span="2">{{ memberBenefitText(detailData.user) }}</el-descriptions-item>
@@ -127,6 +128,14 @@
         <el-form-item label="备注">
           <el-input v-model="balanceForm.remark" placeholder="操作原因（选填）" />
         </el-form-item>
+        <el-alert
+          v-if="balanceForm.type === 'add'"
+          title="充值成功后将按规则自动赠送积分（金额越高倍率越高），当前积分与总积分同步增加。"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 8px"
+        />
       </el-form>
       <template #footer>
         <el-button @click="balanceVisible = false">取消</el-button>
@@ -134,31 +143,38 @@
       </template>
     </el-dialog>
 
-    <!-- 积分调整弹窗 -->
-    <el-dialog v-model="pointsVisible" title="积分管理" width="460px" destroy-on-close>
+    <!-- 积分调整弹窗：当前积分 / 总积分分账户调整 -->
+    <el-dialog v-model="pointsVisible" title="积分管理" width="520px" destroy-on-close>
       <div class="point-info">
         <span>用户：<strong>{{ pointsUser?.nickname }}</strong></span>
         <span>当前积分：<strong class="points-text">{{ formatPoints(pointsUser?.points) }}</strong></span>
-        <span>累计积分：<strong>{{ formatPoints(pointsUser?.totalPoints) }}</strong></span>
+        <span>总积分：<strong>{{ formatPoints(pointsUser?.totalPoints) }}</strong></span>
         <span>当前等级：<strong>{{ pointsUser?.levelName || '青铜伴星' }}</strong></span>
       </div>
       <div v-if="pointsUser" class="benefit-tip">当前权益：{{ memberBenefitText(pointsUser) }}</div>
       <el-alert
-        title="增加或减少积分后，后端会同步重算累计积分、会员等级和对应权益；小程序会在重新拉取用户信息后生效。"
+        title="当前积分可增减（如线下兑换）；总积分用于定级，调整后会重算会员等级。储值充值会自动按规则赠送双账户积分。"
         type="warning"
         :closable="false"
         show-icon
         class="points-alert"
       />
-      <el-form ref="pointsFormRef" :model="pointsForm" :rules="pointsRules" label-width="80px" style="margin-top: 20px">
+      <el-form ref="pointsFormRef" :model="pointsForm" :rules="pointsRules" label-width="100px" style="margin-top: 20px">
+        <el-form-item label="调整账户">
+          <el-radio-group v-model="pointsForm.account">
+            <el-radio-button value="current">当前积分</el-radio-button>
+            <el-radio-button value="total">总积分</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="操作类型">
           <el-radio-group v-model="pointsForm.type">
-            <el-radio-button value="add">增加积分</el-radio-button>
-            <el-radio-button value="sub">减少积分</el-radio-button>
+            <el-radio-button value="add">增加</el-radio-button>
+            <el-radio-button value="sub">减少</el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="积分数" prop="points">
-          <el-input-number v-model="pointsForm.points" :min="1" :precision="0" :step="100" step-strictly style="width: 100%" />
+          <!-- 任意正整数均可（如 315），按钮步进仅作快捷加减 -->
+          <el-input-number v-model="pointsForm.points" :min="1" :precision="0" :step="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="pointsForm.remark" placeholder="操作原因（选填）" />
@@ -255,7 +271,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import {
-  adminUserList, adminUserDetail, adminUserUpdateStatus, adminUserAdjustBalance, adminUserAdjustPoints,
+  adminUserList, adminUserDetail, adminUserUpdateStatus, adminUserAdjustBalance,
+  adminUserAdjustCurrentPoints, adminUserAdjustTotalPoints,
   adminOrderList, adminCouponList, adminUserCouponList, adminUserGrantCoupon, adminUserRevokeCoupon,
   csUserList, csUserDetail, csUserUpdateStatus, csOrderList, csUserCouponList
 } from '@/api/business'
@@ -271,6 +288,7 @@ const levelOptions = [
   { value: 'BRONZE', label: '青铜伴星' },
   { value: 'SILVER', label: '白银伴星' },
   { value: 'GOLD', label: '黄金伴星' },
+  { value: 'PLATINUM', label: '铂金伴星' },
   { value: 'DIAMOND', label: '钻石伴星' },
   { value: 'KING', label: '王者伴星' },
 ]
@@ -297,11 +315,12 @@ const orderTagTypeMap = {
   REFUNDING: 'danger', REFUNDED: 'info', DISPUTED: 'danger', ARBITRATED: 'info'
 }
 const memberBenefitMap = {
-  BRONZE: '0-999分',
-  SILVER: '每月2张9折券',
-  GOLD: '每月4张9折券，优先派单权',
-  DIAMOND: '每月6张9折券，每月1张8折券，优先派单权，专属VIP群',
-  KING: '专属客服，专属VIP群，每月8张9折券，每月2张8折券，新品内测资格，年度定制礼品'
+  BRONZE: '无会员折扣',
+  SILVER: '永久9.8折（任务及定制单除外）',
+  GOLD: '永久9.6折（任务及定制单除外）',
+  PLATINUM: '永久9.4折（任务及定制单除外）',
+  DIAMOND: '永久9.2折（任务及定制单除外）',
+  KING: '永久9.0折（任务及定制单除外）'
 }
 function orderStatusLabel(status) { return orderStatusMap[status] || status }
 function orderTagType(status) { return orderTagTypeMap[status] || '' }
@@ -462,13 +481,14 @@ const pointsVisible = ref(false)
 const pointsUser = ref(null)
 const pointsSubmitting = ref(false)
 const pointsFormRef = ref(null)
-const pointsForm = reactive({ type: 'add', points: null, remark: '' })
+const pointsForm = reactive({ account: 'current', type: 'add', points: null, remark: '' })
 const pointsRules = {
   points: [{ required: true, message: '请输入积分数', trigger: 'change' }]
 }
 
 function openPointsDialog(row) {
   pointsUser.value = row
+  pointsForm.account = 'current'
   pointsForm.type = 'add'
   pointsForm.points = null
   pointsForm.remark = ''
@@ -481,18 +501,21 @@ async function handlePointsSubmit() {
 
   const points = pointsForm.type === 'add' ? pointsForm.points : -pointsForm.points
   const action = pointsForm.type === 'add' ? '增加' : '减少'
+  const accountLabel = pointsForm.account === 'total' ? '总积分' : '当前积分'
+  const levelTip = pointsForm.account === 'total' ? '会员等级将同步重算。' : '不影响总积分与等级。'
 
   try {
     await ElMessageBox.confirm(
-      `确认对用户 "${pointsUser.value.nickname}" ${action} ${pointsForm.points} 积分？等级和权益将同步重算。`,
+      `确认对用户 "${pointsUser.value.nickname}" ${action} ${pointsForm.points} ${accountLabel}？${levelTip}`,
       '确认调整积分', { type: 'warning' }
     )
   } catch { return }
 
   pointsSubmitting.value = true
   try {
-    await adminUserAdjustPoints(pointsUser.value.id, { points, remark: pointsForm.remark })
-    ElMessage.success(`${action}积分成功`)
+    const fn = pointsForm.account === 'total' ? adminUserAdjustTotalPoints : adminUserAdjustCurrentPoints
+    await fn(pointsUser.value.id, { points, remark: pointsForm.remark })
+    ElMessage.success(`${action}${accountLabel}成功`)
     pointsVisible.value = false
     fetchData()
   } catch (e) {

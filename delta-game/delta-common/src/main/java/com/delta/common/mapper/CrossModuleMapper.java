@@ -38,6 +38,16 @@ public interface CrossModuleMapper {
     @Select("SELECT phone FROM user WHERE id = #{userId}")
     String selectUserPhone(@Param("userId") Long userId);
 
+    @Select("SELECT total_points FROM user WHERE id = #{userId}")
+    Integer selectUserTotalPoints(@Param("userId") Long userId);
+
+    @Select("SELECT level_code FROM user WHERE id = #{userId}")
+    String selectUserLevelCode(@Param("userId") Long userId);
+
+    /** 订单成功支付方式：WECHAT / BALANCE */
+    @Select("SELECT pay_method FROM payment WHERE order_id = #{orderId} AND status = 'PAID' ORDER BY id DESC LIMIT 1")
+    String selectOrderPayMethod(@Param("orderId") Long orderId);
+
     @Select("SELECT avatar FROM user WHERE openid = #{openid} AND avatar IS NOT NULL AND avatar != '' LIMIT 1")
     String selectUserAvatarByOpenid(@Param("openid") String openid);
 

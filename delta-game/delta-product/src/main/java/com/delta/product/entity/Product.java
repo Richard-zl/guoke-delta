@@ -52,6 +52,22 @@ public class Product extends BaseEntity {
     @TableField(exist = false)
     private String trialLimitTip;
 
+    /** 是否允许会员等级折扣（非DB字段，排除分类为 false） */
+    @TableField(exist = false)
+    private Boolean memberDiscountAllowed;
+
+    /** 当前用户会员折扣率（非DB字段，1.00 表示无折扣） */
+    @TableField(exist = false)
+    private BigDecimal memberDiscountRate;
+
+    /** 当前用户会员等级代码（非DB字段） */
+    @TableField(exist = false)
+    private String memberLevelCode;
+
+    /** 当前用户会员等级名称（非DB字段） */
+    @TableField(exist = false)
+    private String memberLevelName;
+
     /** 是否可选数量: 1开 0关 */
     private Integer quantityEnabled;
     /** 数量单位名(如:小时/局/个) */

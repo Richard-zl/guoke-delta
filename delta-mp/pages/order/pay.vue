@@ -24,10 +24,10 @@
     <view class="pay-methods">
       <view v-if="canUseWechatPay" class="method" :class="{ active: payType === 'WECHAT' }" @click="payType='WECHAT'">
         <image class="method-icon" src="/static/icons/钞票.svg" mode="aspectFit" />
-        <text class="method-name">联系客服支付</text>
+        <text class="method-name">{{ isUnderReview ? '联系客服' : '联系客服支付' }}</text>
         <view class="radio" :class="{ checked: payType === 'WECHAT' }" />
       </view>
-      <view class="method" :class="{ active: payType === 'BALANCE' }" @click="payType='BALANCE'">
+      <view v-if="!isUnderReview" class="method" :class="{ active: payType === 'BALANCE' }" @click="payType='BALANCE'">
         <image class="method-icon" src="/static/icons/理财.svg" mode="aspectFit" />
         <view class="method-info">
           <text class="method-name">余额支付</text>
@@ -51,8 +51,10 @@ import { getWallet } from '@/api/user'
 import { requestOrderSubscribe } from '@/utils/subscribe'
 import { isMpWeixin } from '@/utils/platform'
 import { blockIfUnderReview } from '@/composables/useAuditGuard'
+import { useAuditMode } from '@/composables/useAuditMode'
 import { useWeworkCs } from '@/composables/useWeworkCs'
 
+const { isUnderReview } = useAuditMode()
 const { openWeworkCs } = useWeworkCs()
 
 const orderId = ref(0)

@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -20,6 +22,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,13 +33,16 @@ import java.util.Map;
  * 微信客服能力封装（方案 A：同客服号按入口分流）。
  * <ul>
  *   <li>支付入口 scene=pay 且订单待支付：进线尽量立刻发「蓝字」支付菜单（msgmenu）；发完分配人工。
- *       若当前人工/排队则先结束会话再用结束语发送；state=4 且无 welcome_code 时只能暂存，客户发言后补发并分配。</li>
+ *       若当前人工/排队则先结束会话再用结束语发送；state=4 且无 welcome_code 时只能暂存，客户发言后补发并分配。
+ *       底线：暂存 + 客户发言补发路径必须始终可用，不得比「回一句就能发出」更差。</li>
  *   <li>咨询入口：不发支付，客户发言后分配人工。</li>
  * </ul>
  */
 @Slf4j
 @Service
 public class WxKfService {
+
+    private static final DateTimeFormatter PAY_MSG_TIME_FMT = DateTimeFormatter.ofPattern("MM-dd HH:mm");
 
     private static final String ACCESS_TOKEN_URL = "https://qyapi.weixin.qq.com/cgi-bin/gettoken";
     private static final String SYNC_MSG_URL = "https://qyapi.weixin.qq.com/cgi-bin/kf/sync_msg";
@@ -258,18 +265,18 @@ public class WxKfService {
         }
 
         String link = buildPayLink(sceneParam);
-        // 产品策略：蓝字菜单进线即发；每次待支付进线都发；发完分配人工
+        // 产品策略：蓝字菜单进线即发；每次待支付进线都发；发完尽量分配人工；失败必暂存
         deliverPayGuide(welcomeCode, openKfId, externalUserId,
-                "订单支付", buildDescription(order), link);
+                "订单支付", buildPayMenuDesc(order), link);
     }
 
     /**
      * 推送支付蓝字菜单（msgmenu），并尽量分配人工。
      * <ul>
      *   <li>有 welcome_code：事件通道直接发</li>
-     *   <li>state=0/1：send_msg 发菜单后立刻转人工</li>
-     *   <li>state=2/3：结束会话，用结束语 msg_code 发菜单；结束后需等客户再发言才能分配</li>
-     *   <li>state=4 且无 welcome_code：企微不允许当场发，暂存，客户发言后补发并分配</li>
+     *   <li>state=0/1：send_msg 发菜单后转人工（不结束会话，避免下次进线落在 state=4）</li>
+     *   <li>state=2/3：结束会话，用结束语 msg_code 发菜单（保证能发出）</li>
+     *   <li>其余发不出：暂存，客户发言后补发（底线路径，不可削弱）</li>
      * </ul>
      */
     private void deliverPayGuide(String welcomeCode, String openKfId, String externalUserId,
@@ -296,12 +303,12 @@ public class WxKfService {
             }
         }
 
-        // 2) 智能助手 / 未处理：可 send_msg
+        // 2) 智能助手 / 未处理：可 send_msg（成功后只转人工，绝不结束会话）
         if (!sent && (state == 0 || state == SERVICE_STATE_AI)) {
             sent = trySendMenuBySendMsg(externalUserId, openKfId, state, menuPayload);
         }
 
-        // 3) 排队/人工：不能 send_msg，结束会话后用结束语发菜单（每次进线都能发）
+        // 3) 排队/人工：不能 send_msg，结束会话后用结束语发菜单（保证本次能发出）
         if (!sent && (state == SERVICE_STATE_WAITING_POOL || state == SERVICE_STATE_HUMAN)) {
             String endCode = changeServiceState(openKfId, externalUserId, SERVICE_STATE_ENDED, null,
                     "结束会话以发送支付链接");
@@ -312,13 +319,14 @@ public class WxKfService {
         if (sent) {
             clearPendingPayMessage(openKfId, externalUserId);
             if (sessionEndedForSend) {
-                // state=4 时 API 无法分配，等客户再发言走 dispatchMessage → enqueue
+                // 结束后 API 无法立刻分配；客户再发言仍会 flush(空)+enqueue
                 log.info("支付菜单已发送(经结束会话)，待客户再发言后分配人工 openKfId={}", openKfId);
             } else {
+                // 0/1 或 welcome 发出：转人工，保持会话未结束，降低下次落到 state=4 的概率
                 enqueueForHumanIfNeeded(openKfId, externalUserId);
             }
         } else {
-            // 典型：state=4 且无 welcome_code
+            // 底线：典型 state=4 且无 welcome_code —— 必须暂存，发言后补发
             savePendingPayGuide(openKfId, externalUserId, title, desc, url);
             log.warn("支付引导未能进线发出(state={})，已暂存；客户发言后补发并分配人工 openKfId={}",
                     state, openKfId);
@@ -623,7 +631,7 @@ public class WxKfService {
         return map;
     }
 
-    /** 支付蓝字菜单：可点「打开支付页面」 */
+    /** 支付蓝字菜单：可点「打开支付页面」；desc 含商品/金额/下单与截止时间，便于区分多笔订单 */
     private Map<String, Object> payMenuMsg(String title, String desc, String url) {
         Map<String, Object> map = new HashMap<>();
         map.put("msgtype", "msgmenu");
@@ -641,11 +649,34 @@ public class WxKfService {
         return map;
     }
 
-    private String buildDescription(Order order) {
-        if (order.getProductName() != null && !order.getProductName().isEmpty()) {
-            return order.getProductName();
+    /** 拼支付菜单正文，方便用户在历史气泡中区分订单 */
+    private String buildPayMenuDesc(Order order) {
+        StringBuilder sb = new StringBuilder();
+        String product = !isBlank(order.getProductName()) ? order.getProductName() : "待支付订单";
+        sb.append("商品：").append(product);
+        if (order.getAmount() != null) {
+            sb.append("\n金额：¥").append(formatAmount(order.getAmount()));
         }
-        return "点击完成支付";
+        if (order.getCreatedAt() != null) {
+            sb.append("\n下单：").append(formatPayMsgTime(order.getCreatedAt()));
+        }
+        if (order.getPayDeadline() != null) {
+            sb.append("\n支付截止：").append(formatPayMsgTime(order.getPayDeadline()));
+        }
+        String orderNo = order.getOrderNo();
+        if (!isBlank(orderNo)) {
+            String tail = orderNo.length() <= 6 ? orderNo : orderNo.substring(orderNo.length() - 6);
+            sb.append("\n单号尾号：").append(tail);
+        }
+        return sb.toString();
+    }
+
+    private static String formatPayMsgTime(LocalDateTime time) {
+        return time.format(PAY_MSG_TIME_FMT);
+    }
+
+    private static String formatAmount(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     private String buildPayLink(String payToken) {

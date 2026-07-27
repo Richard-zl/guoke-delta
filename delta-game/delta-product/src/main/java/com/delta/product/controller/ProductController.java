@@ -11,8 +11,8 @@ import com.delta.product.entity.RecommendCategory;
 import com.delta.product.service.CategoryService;
 import com.delta.product.service.ProductService;
 import com.delta.product.service.RecommendCategoryService;
+import com.delta.product.service.MemberDiscountService;
 import com.delta.product.service.TrialOrderService;
-import com.delta.common.security.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,6 +26,7 @@ public class ProductController {
     private final RecommendCategoryService recommendCategoryService;
     private final CategoryService categoryService;
     private final TrialOrderService trialOrderService;
+    private final MemberDiscountService memberDiscountService;
 
     @GetMapping("/list")
     public R<Page<Product>> list(PageQuery query,
@@ -97,7 +98,9 @@ public class ProductController {
         if (!isPrivilegedRequest() && !Integer.valueOf(1).equals(product.getStatus())) {
             return R.fail("商品已下架");
         }
-        trialOrderService.enrichTrialInfo(product, resolveOptionalUserId());
+        Long userId = resolveOptionalUserId();
+        trialOrderService.enrichTrialInfo(product, userId);
+        memberDiscountService.enrichMemberDiscountInfo(product, userId);
         productService.fillVariants(product);
         return R.ok(product);
     }

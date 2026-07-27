@@ -115,11 +115,46 @@ public class AdminUserController {
                 balanceBefore, balanceAfter, null, null, null,
                 "管理员调整: " + (remark.isEmpty() ? (amount.compareTo(BigDecimal.ZERO) > 0 ? "充值" : "扣款") : remark));
 
+        // 后台储值赠积分（扣款不加分）
+        if (amount.compareTo(BigDecimal.ZERO) > 0) {
+            pointsService.addPointsByRecharge(id, amount);
+        }
+
         return R.ok();
     }
 
     /**
-     * 调整用户积分
+     * 调整用户当前积分（不影响总积分与等级）
+     */
+    @OpLog(module = "user", operation = "调整当前积分")
+    @PostMapping("/{id}/points/current")
+    public R<Void> adjustCurrentPoints(@PathVariable Long id,
+                                       @RequestParam Integer points,
+                                       @RequestParam(required = false) String remark) {
+        if (points == null || points == 0) {
+            throw new BusinessException("调整积分不能为0");
+        }
+        pointsService.adminAdjustCurrentPoints(id, points, remark);
+        return R.ok();
+    }
+
+    /**
+     * 调整用户总积分（影响会员等级）
+     */
+    @OpLog(module = "user", operation = "调整总积分")
+    @PostMapping("/{id}/points/total")
+    public R<Void> adjustTotalPoints(@PathVariable Long id,
+                                     @RequestParam Integer points,
+                                     @RequestParam(required = false) String remark) {
+        if (points == null || points == 0) {
+            throw new BusinessException("调整积分不能为0");
+        }
+        pointsService.adminAdjustTotalPoints(id, points, remark);
+        return R.ok();
+    }
+
+    /**
+     * 兼容旧接口：同时调整当前积分与总积分
      */
     @OpLog(module = "user", operation = "调整积分")
     @PostMapping("/{id}/points")

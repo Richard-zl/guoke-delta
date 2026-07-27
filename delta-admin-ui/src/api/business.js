@@ -16,6 +16,12 @@ export function adminUserAdjustBalance(id, data) {
 export function adminUserAdjustPoints(id, params) {
   return request({ url: `/admin/user/${id}/points`, method: 'post', params })
 }
+export function adminUserAdjustCurrentPoints(id, params) {
+  return request({ url: `/admin/user/${id}/points/current`, method: 'post', params })
+}
+export function adminUserAdjustTotalPoints(id, params) {
+  return request({ url: `/admin/user/${id}/points/total`, method: 'post', params })
+}
 export function csUserList(params) {
   return request({ url: '/cs/user/list', method: 'get', params })
 }

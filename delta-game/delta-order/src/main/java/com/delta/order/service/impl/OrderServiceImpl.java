@@ -19,8 +19,10 @@ import com.delta.order.service.OrderPriceResolver;
 import com.delta.order.service.OrderService;
 import com.delta.common.chat.service.ChatSessionService;
 import com.delta.common.chat.util.ChatParticipantId;
+import com.delta.product.dto.MemberDiscountResult;
 import com.delta.product.entity.Product;
 import com.delta.product.enums.ProductLimitTypeEnum;
+import com.delta.product.service.MemberDiscountService;
 import com.delta.product.service.ProductService;
 import com.delta.product.service.ProductVariantService;
 import com.delta.product.service.TrialOrderService;
@@ -54,6 +56,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private final UserCouponMapper userCouponMapper;
     private final CouponMapper couponMapper;
     private final TrialOrderService trialOrderService;
+    private final MemberDiscountService memberDiscountService;
     private final ProductVariantService productVariantService;
 
     @Override
@@ -83,7 +86,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         // 1.2 体验单限购：分类级周期内仅可购买一单（待支付不计入）
         trialOrderService.validateTrialOrderForCreate(userId, product);
 
-        // 2. 服务端计价：规格单价 × 数量 + 优惠券 → 应付金额
+        // 2. 服务端计价：规格单价 × 数量 → 会员等级折 → 优惠券 → 应付金额
         var variants = productVariantService.listActiveByProductId(product.getId());
         OrderPriceResolver.PriceBreakdown pricing = OrderPriceResolver.resolve(
                 product, variants, req.getVariantId(), req.getQuantity());
@@ -92,8 +95,13 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         // 体验单不可使用优惠券
         trialOrderService.validateNoCoupon(product, req.getCouponId());
 
-        BigDecimal finalAmount = subtotal;
+        // 会员等级折扣
+        MemberDiscountResult memberDiscount = memberDiscountService.applyLevelDiscount(subtotal, userId, product);
+        BigDecimal amountAfterMember = memberDiscount.getAmountAfterMemberDiscount();
+
+        BigDecimal finalAmount = amountAfterMember;
         Long userCouponId = null;
+        BigDecimal couponDiscountAmount = BigDecimal.ZERO;
         if (req.getCouponId() != null) {
             UserCoupon userCoupon = userCouponMapper.selectById(req.getCouponId());
             if (userCoupon == null || !userId.equals(userCoupon.getUserId())) {
@@ -109,14 +117,16 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             if (coupon == null || coupon.getStatus() != 1) {
                 throw new BusinessException("优惠券不存在");
             }
-            if (coupon.getMinAmount().compareTo(subtotal) > 0) {
+            // 券门槛按等级折后金额校验
+            if (coupon.getMinAmount().compareTo(amountAfterMember) > 0) {
                 throw new BusinessException("订单金额未达到优惠券使用门槛");
             }
-            finalAmount = applyCouponDiscount(subtotal, coupon);
+            finalAmount = applyCouponDiscount(amountAfterMember, coupon);
+            couponDiscountAmount = amountAfterMember.subtract(finalAmount);
             userCouponId = req.getCouponId();
         }
 
-        // 校验客户端提交的应付金额与服务端计算一致（无券时等于原价，有券时为折后价）
+        // 校验客户端提交的应付金额与服务端计算一致
         if (req.getAmount() == null || normalizeMoney(req.getAmount()).compareTo(finalAmount) != 0) {
             throw new BusinessException("价格异常，请刷新后重试");
         }
@@ -134,6 +144,11 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         order.setQuantity(pricing.getQuantity());
         order.setVariantId(pricing.getVariantId());
         order.setVariantName(pricing.getVariantName());
+        order.setOriginalAmount(subtotal);
+        order.setMemberDiscountRate(memberDiscount.getDiscountRate());
+        order.setMemberDiscountAmount(memberDiscount.getDiscountAmount());
+        order.setMemberLevelName(memberDiscount.getLevelName());
+        order.setCouponDiscountAmount(couponDiscountAmount);
         order.setAmount(finalAmount);
         // 保存使用的优惠券ID
         order.setUserCouponId(userCouponId);

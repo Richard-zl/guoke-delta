@@ -129,6 +129,14 @@ export function useWeworkCs() {
           })
           wx.openCustomerServiceChat(opts)
         })
+        // 进线偶发 state=4 无法秒回：提示用户发一句即可触发补发
+        if (scene === 'pay') {
+          uni.showToast({
+            title: '正在为您发送支付链接；若未出现，请发送任意消息',
+            icon: 'none',
+            duration: 3000
+          })
+        }
         return
       } catch (e) {
         const errMsg = e?.errMsg || e?.message || String(e)

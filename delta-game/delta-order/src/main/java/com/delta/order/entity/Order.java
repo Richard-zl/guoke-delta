@@ -25,6 +25,16 @@ public class Order {
     private Long variantId;
     /** 规格名快照 */
     private String variantName;
+    /** 下单原价（等级折/券折前） */
+    private BigDecimal originalAmount;
+    /** 会员折扣率快照（1.00 表示未打折） */
+    private BigDecimal memberDiscountRate;
+    /** 会员折扣减免金额 */
+    private BigDecimal memberDiscountAmount;
+    /** 会员等级名称快照 */
+    private String memberLevelName;
+    /** 优惠券抵扣金额 */
+    private BigDecimal couponDiscountAmount;
     private BigDecimal commissionRate;
     private String gameAccount;
     private String contact;
@@ -66,14 +76,6 @@ public class Order {
     /** 优惠券类型（非DB字段） */
     @TableField(exist = false)
     private String couponType;
-
-    /** 下单原价，未使用券时与 amount 相同（非DB字段） */
-    @TableField(exist = false)
-    private BigDecimal originalAmount;
-
-    /** 优惠券抵扣金额（非DB字段） */
-    @TableField(exist = false)
-    private BigDecimal couponDiscountAmount;
 
     /** 打手昵称（非DB字段，列表展示用） */
     @TableField(exist = false)

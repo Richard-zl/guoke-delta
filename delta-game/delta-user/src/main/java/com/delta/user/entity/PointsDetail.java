@@ -13,9 +13,11 @@ public class PointsDetail {
     private Long id;
     private Long userId;
     private Integer points;        // 变动积分（正为增加，负为减少）
-    private Integer balance;       // 变动后余额
-    private String type;           // 类型：ORDER_CONSUME, ADMIN_ADJUST, DAILY_LOGIN 等
+    private Integer balance;       // 变动后对应账户余额
+    private String type;           // ORDER_CONSUME / RECHARGE / ADMIN_ADD / ADMIN_DEDUCT / TOTAL_ADMIN_*
     private String remark;         // 备注
     private Long orderId;          // 关联订单ID
+    /** 账户类型：CURRENT-当前积分 TOTAL-总积分 */
+    private String accountType;
     private LocalDateTime createdAt;
 }

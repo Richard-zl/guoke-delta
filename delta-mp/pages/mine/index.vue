@@ -2,6 +2,7 @@
   <view class="mine-page tab-page">
     <canvas type="2d" id="goldDust" class="gold-dust-canvas"></canvas>
     <scroll-view scroll-y class="mine-scroll tab-page-scroll" :show-scrollbar="false">
+      <!-- 头像资料 -->
       <view class="profile-card" @click="userStore.isLoggedIn ? go('/pages/mine/profile') : goLogin()" @longtap="onLongPress">
         <view class="profile-main">
           <image class="avatar" :src="userStore.avatar || '/static/images/default-avatar.png'" mode="aspectFill" />
@@ -18,22 +19,55 @@
         </view>
       </view>
 
-      <!-- 积分和优惠券卡片 -->
-      <view class="stats-card" v-if="userStore.isLoggedIn && siteStore.configLoaded && !isUnderReview">
-        <view class="stat-item" @click="goPointsDetail">
-          <text class="stat-value">{{ userInfo.points || 0 }}</text>
-          <text class="stat-label">我的积分</text>
+      <!-- 会员身份卡（主体）+ 积分/券次要入口 -->
+      <view
+        v-if="userStore.isLoggedIn && siteStore.configLoaded && !isUnderReview"
+        class="member-block"
+      >
+        <view class="member-card" :style="memberCardStyle" @click="goPointsDetail">
+          <view class="member-orb" :style="{ background: memberTheme.orb }" />
+          <text class="member-eyebrow" :style="{ color: memberTheme.text }">MEMBERSHIP</text>
+          <text class="member-title" :style="{ color: memberTheme.title }">{{ memberLevel.name }}</text>
+          <text class="member-benefit" :style="{ color: memberTheme.text }">{{ memberLevel.benefit }}</text>
+          <view class="member-bar-track">
+            <view
+              class="member-bar-fill"
+              :style="{ width: memberProgress.percent + '%', background: memberTheme.bar }"
+            />
+          </view>
+          <text class="member-hint" :style="{ color: memberTheme.text }">
+            {{
+              memberProgress.isMax
+                ? '已达最高等级'
+                : `距${memberProgress.nextName}还差 ${formatPoints(memberProgress.remainPoints)} 积分`
+            }}
+          </text>
         </view>
-        <view class="stat-divider"></view>
-        <view class="stat-item" @click="goCouponList">
-          <text class="stat-value">{{ couponCount }}</text>
-          <text class="stat-label">优惠券</text>
+
+        <view class="asset-row">
+          <view class="asset-item" @click="goPointsDetail">
+            <text class="asset-value">{{ formatPoints(userInfo.points) }}</text>
+            <text class="asset-label">当前积分</text>
+          </view>
+          <view class="asset-divider" />
+          <view class="asset-item" @click="goCouponList">
+            <text class="asset-value">{{ couponCount }}</text>
+            <text class="asset-label">优惠券</text>
+          </view>
         </view>
       </view>
 
-      <!-- 会员等级标签 -->
-      <view class="level-tag" v-if="userStore.isLoggedIn">
-        <text class="level-name">{{ userInfo.levelName || '青铜伴星' }}</text>
+      <!-- 审核态仅展示等级名，避免露出积分券 -->
+      <view
+        v-else-if="userStore.isLoggedIn"
+        class="member-block"
+      >
+        <view class="member-card" :style="memberCardStyle" @click="goPointsDetail">
+          <view class="member-orb" :style="{ background: memberTheme.orb }" />
+          <text class="member-eyebrow" :style="{ color: memberTheme.text }">MEMBERSHIP</text>
+          <text class="member-title" :style="{ color: memberTheme.title }">{{ memberLevel.name }}</text>
+          <text class="member-benefit" :style="{ color: memberTheme.text }">{{ memberLevel.benefit }}</text>
+        </view>
       </view>
 
       <view class="quick-panel">
@@ -97,7 +131,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useUserStore } from '@/store/user'
 import { useChatStore } from '@/store/chat'
@@ -106,6 +140,12 @@ import { usePlayerStore } from '@/store/player'
 import { getUserToken, setPlayerToken } from '@/utils/auth'
 import { switchToPlayerToken } from '@/api/auth'
 import { getUserInfo as getUserInfoApi, getCouponCount } from '@/api/user'
+import {
+  resolveMemberLevel,
+  getMemberTheme,
+  getMemberProgress,
+  formatPoints
+} from '@/utils/memberLevel'
 import { useGoldDust } from '@/composables/useGoldDust'
 import { useWeworkCs } from '@/composables/useWeworkCs'
 import CsContactModal from '@/components/CsContactModal.vue'
@@ -127,7 +167,15 @@ const systemUnread = computed(() => chatStore.messageUnreadCount)
 const userInfo = ref({})
 const couponCount = ref(0)
 
-// 每次显示页面时检查登录态并刷新用户信息
+const memberLevel = computed(() =>
+  resolveMemberLevel(userInfo.value?.totalPoints, userInfo.value?.levelCode)
+)
+const memberTheme = computed(() => getMemberTheme(memberLevel.value.code))
+const memberProgress = computed(() => getMemberProgress(userInfo.value?.totalPoints))
+const memberCardStyle = computed(() => ({
+  background: memberTheme.value.cardBg
+}))
+
 onShow(async () => {
   if (!siteStore.configLoaded) await siteStore.fetchSiteConfig()
   const savedToken = getUserToken()
@@ -144,9 +192,9 @@ onShow(async () => {
 async function loadUserData() {
   try {
     const userRes = await getUserInfoApi()
-    userInfo.value = userRes.data
+    userInfo.value = userRes.data || {}
     const couponRes = await getCouponCount()
-    couponCount.value = couponRes.data
+    couponCount.value = couponRes.data || 0
   } catch (e) {
     console.error('获取用户信息失败', e)
   }
@@ -282,51 +330,97 @@ function onLongPress() {
   margin-left: 12rpx;
 }
 
-.stats-card {
-  display: flex;
-  background: linear-gradient(135deg, #ff4544, #e63939);
-  margin: 24rpx;
-  border-radius: 20rpx;
-  padding: 40rpx 0;
-  
-  .stat-item {
-    flex: 1;
-    text-align: center;
-    
-    .stat-value {
-      font-size: 48rpx;
-      font-weight: bold;
-      color: #fff;
-      display: block;
-    }
-    
-    .stat-label {
-      font-size: 24rpx;
-      color: rgba(255,255,255,0.8);
-      margin-top: 8rpx;
-      display: block;
-    }
-  }
-  
-  .stat-divider {
-    width: 1rpx;
-    background: rgba(255,255,255,0.3);
-    height: 60rpx;
-    align-self: center;
-  }
+/* 会员区块：身份卡 + 次要资产 */
+.member-block {
+  margin: 20rpx 24rpx 0;
+  position: relative;
+  z-index: 1;
+}
+.member-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22rpx;
+  padding: 32rpx 28rpx 28rpx;
+  box-shadow: 0 14rpx 36rpx rgba(15, 23, 42, 0.18);
+}
+.member-orb {
+  position: absolute;
+  right: -24rpx;
+  top: -24rpx;
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.member-eyebrow {
+  display: block;
+  font-size: 20rpx;
+  letter-spacing: 4rpx;
+  opacity: 0.75;
+  font-weight: 600;
+}
+.member-title {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 44rpx;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.member-benefit {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  opacity: 0.92;
+  line-height: 1.4;
+}
+.member-bar-track {
+  margin-top: 28rpx;
+  height: 8rpx;
+  border-radius: 8rpx;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+.member-bar-fill {
+  height: 100%;
+  border-radius: 8rpx;
+  transition: width 0.3s ease;
+}
+.member-hint {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  opacity: 0.72;
 }
 
-.level-tag {
-  margin: 0 24rpx 24rpx;
-  
-  .level-name {
-    font-size: 24rpx;
-    color: #ff4544;
-    background: rgba(255,69,68,0.1);
-    padding: 8rpx 20rpx;
-    border-radius: 30rpx;
-    display: inline-block;
-  }
+.asset-row {
+  display: flex;
+  align-items: center;
+  margin-top: 16rpx;
+  padding: 28rpx 0;
+  background: #ffffff;
+  border-radius: 18rpx;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.06);
+}
+.asset-item {
+  flex: 1;
+  text-align: center;
+}
+.asset-value {
+  display: block;
+  font-size: 34rpx;
+  font-weight: 800;
+  color: #111827;
+}
+.asset-label {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+.asset-divider {
+  width: 1rpx;
+  height: 48rpx;
+  background: #e2e8f0;
 }
 
 .quick-panel {
@@ -457,11 +551,6 @@ function onLongPress() {
   color: #334155;
   .menu-icon { width: 40rpx; height: 40rpx; margin-right: 16rpx; flex-shrink: 0; }
   text { flex: 1; }
-  .badge {
-    min-width: 32rpx; height: 32rpx; line-height: 32rpx; padding: 0 8rpx;
-    font-size: 20rpx; color: #fff; background: #ee0a24; border-radius: 32rpx;
-    text-align: center; margin-right: 8rpx; flex-shrink: 0;
-  }
   .arrow { color: #cbd5e1; flex: none; }
   &:last-child { border-bottom: none; }
 }

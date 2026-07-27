@@ -71,6 +71,15 @@ public class OrderController {
     }
 
     private void fillCouponInfo(Order order) {
+        // 已有快照字段时保留下单时写入的原价/会员折/券折，仅补券名称类型
+        if (order.getOriginalAmount() != null) {
+            if (order.getUserCouponId() != null && (order.getCouponName() == null || order.getCouponType() == null)) {
+                OrderCouponView couponView = couponService.buildOrderCouponView(order.getUserCouponId(), order.getAmount());
+                order.setCouponName(couponView.getCouponName());
+                order.setCouponType(couponView.getCouponType());
+            }
+            return;
+        }
         OrderCouponView couponView = couponService.buildOrderCouponView(order.getUserCouponId(), order.getAmount());
         order.setCouponName(couponView.getCouponName());
         order.setCouponType(couponView.getCouponType());
