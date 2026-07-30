@@ -264,6 +264,8 @@ public class PlayerOrderController {
         OrderPlayer op;
         if (historical != null) {
             op = historical;
+            // 曾当过主接等场景会复用历史行，必须改成 TEAMMATE，否则邀请列表/超时任务按 role 过滤不到
+            op.setRole("TEAMMATE");
             op.setStatus("INVITED");
             op.setSplitType(req.getSplitType());
             op.setSplitAmount(req.getCustomAmount());
