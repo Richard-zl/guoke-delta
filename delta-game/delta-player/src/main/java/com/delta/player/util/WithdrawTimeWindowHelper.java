@@ -34,6 +34,10 @@ public final class WithdrawTimeWindowHelper {
             for (Map<String, Object> m : raw) {
                 int startDow = ((Number) m.get("startDow")).intValue();
                 int endDow = ((Number) m.get("endDow")).intValue();
+                if (startDow < 1 || startDow > 7 || endDow < 1 || endDow > 7) {
+                    throw new IllegalArgumentException(
+                            "startDow/endDow 须在 1..7, got startDow=" + startDow + ", endDow=" + endDow);
+                }
                 LocalTime startTime = LocalTime.parse(String.valueOf(m.get("startTime")));
                 LocalTime endTime = LocalTime.parse(String.valueOf(m.get("endTime")));
                 list.add(new Window(startDow, startTime, endDow, endTime));

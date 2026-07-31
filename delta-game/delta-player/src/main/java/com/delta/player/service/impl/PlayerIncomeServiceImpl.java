@@ -156,20 +156,22 @@ public class PlayerIncomeServiceImpl implements PlayerIncomeService {
     }
 
     /**
-     * PRIMARY + ACCEPTED TEAMMATE（按本单剩余 settleAmount 入账）。
+     * 最新 PRIMARY（LIMIT 1）+ 全部 ACCEPTED TEAMMATE（按本单剩余 settleAmount 入账）。
      */
     private List<OrderPlayer> listReleasePlayers(Long orderId) {
-        List<OrderPlayer> all = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
-                .eq(OrderPlayer::getOrderId, orderId)
-                .in(OrderPlayer::getRole, "PRIMARY", "TEAMMATE"));
         List<OrderPlayer> result = new ArrayList<>();
-        for (OrderPlayer op : all) {
-            if ("PRIMARY".equals(op.getRole())) {
-                result.add(op);
-            } else if ("TEAMMATE".equals(op.getRole()) && "ACCEPTED".equals(op.getStatus())) {
-                result.add(op);
-            }
-        }
+        // 仅取最新 PRIMARY，与结算记待入账时一致，避免重复入账
+        List<OrderPlayer> primaryOps = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
+                .eq(OrderPlayer::getOrderId, orderId)
+                .eq(OrderPlayer::getRole, "PRIMARY")
+                .orderByDesc(OrderPlayer::getId)
+                .last("LIMIT 1"));
+        result.addAll(primaryOps);
+        List<OrderPlayer> teammates = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
+                .eq(OrderPlayer::getOrderId, orderId)
+                .eq(OrderPlayer::getRole, "TEAMMATE")
+                .eq(OrderPlayer::getStatus, "ACCEPTED"));
+        result.addAll(teammates);
         return result;
     }
 

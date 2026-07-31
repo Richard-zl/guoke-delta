@@ -31,4 +31,10 @@ class WithdrawTimeWindowHelperTest {
     void invalidJson_fallsBackToDefault() {
         assertEquals(2, WithdrawTimeWindowHelper.parseWindows("not-json").size());
     }
+
+    @Test
+    void invalidDow_fallsBackToDefault() {
+        String json = "[{\"startDow\":0,\"startTime\":\"12:00\",\"endDow\":3,\"endTime\":\"12:00\"}]";
+        assertEquals(2, WithdrawTimeWindowHelper.parseWindows(json).size());
+    }
 }

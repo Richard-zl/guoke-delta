@@ -2,6 +2,7 @@ package com.delta.admin.listener;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.delta.common.event.OrderConfirmedEvent;
+import com.delta.common.exception.BusinessException;
 import com.delta.order.entity.Order;
 import com.delta.order.entity.OrderPlayer;
 import com.delta.order.service.OrderPlayerService;
@@ -84,6 +85,18 @@ public class SettlementEventListener {
             log.info("队友待入账: orderId={}, playerId={}, 分成={}", orderId, tm.getPlayerId(), tmIncome);
         }
 
+        // 主打手 order_player 必须存在，否则释放无法对账；缺失则整单回滚
+        List<OrderPlayer> primaryOps = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
+                .eq(OrderPlayer::getOrderId, orderId)
+                .eq(OrderPlayer::getPlayerId, primaryPlayerId)
+                .eq(OrderPlayer::getRole, "PRIMARY")
+                .orderByDesc(OrderPlayer::getId)
+                .last("LIMIT 1"));
+        if (primaryOps.isEmpty()) {
+            log.error("结算失败: 主打手 order_player 缺失, orderId={}, playerId={}", orderId, primaryPlayerId);
+            throw new BusinessException("结算失败: 主打手 order_player 缺失");
+        }
+
         // 主打手待入账（扣除队友分成后的剩余）
         if (primaryIncome.compareTo(BigDecimal.ZERO) > 0) {
             creditPending(primaryPlayerId, primaryIncome, orderId,
@@ -94,18 +107,10 @@ public class SettlementEventListener {
                             playerTotalIncome.toPlainString(),
                             primaryIncome.toPlainString()));
         }
-        // 更新主打手 OrderPlayer 结算金额（settledAt 留空）
-        List<OrderPlayer> primaryOps = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
-                .eq(OrderPlayer::getOrderId, orderId)
-                .eq(OrderPlayer::getPlayerId, primaryPlayerId)
-                .eq(OrderPlayer::getRole, "PRIMARY")
-                .orderByDesc(OrderPlayer::getId)
-                .last("LIMIT 1"));
-        if (!primaryOps.isEmpty()) {
-            OrderPlayer primaryOp = primaryOps.get(0);
-            primaryOp.setSettleAmount(primaryIncome);
-            orderPlayerService.updateById(primaryOp);
-        }
+        // 更新最新 PRIMARY 的结算金额（settledAt 留空）
+        OrderPlayer primaryOp = primaryOps.get(0);
+        primaryOp.setSettleAmount(primaryIncome);
+        orderPlayerService.updateById(primaryOp);
 
         // 标记订单待入账，设置预计可入账时间
         int delayDays = Integer.parseInt(sysConfigService.getConfigValue("settlement.delay_days", "5"));
