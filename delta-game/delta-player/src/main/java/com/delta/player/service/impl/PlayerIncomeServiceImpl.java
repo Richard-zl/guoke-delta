@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -23,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 打手收入服务：定时释放待入账；仲裁扣回由 Task 5 补全。
+ * 打手收入服务：定时释放待入账；仲裁退款先扣待入账再扣余额。
  */
 @Slf4j
 @Service
@@ -177,10 +178,104 @@ public class PlayerIncomeServiceImpl implements PlayerIncomeService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deductForOrderRefund(Order order, BigDecimal refundAmount) {
-        // Task 5 补全：settled=2 先扣 pending/settleAmount，再扣 balance
-        log.warn("deductForOrderRefund 尚未实现, orderId={}, refundAmount={}",
-                order != null ? order.getId() : null, refundAmount);
+        if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        if (order == null || order.getPlayerId() == null) {
+            return;
+        }
+        Integer settled = order.getSettled();
+        if (settled == null || (settled != 1 && settled != 2)) {
+            return;
+        }
+
+        BigDecimal remain = refundAmount;
+        Long playerId = order.getPlayerId();
+
+        // settled=2：先扣主打手本单剩余待入账
+        if (settled == 2) {
+            remain = deductPendingForPrimary(order, playerId, remain, refundAmount);
+        }
+
+        // 不足部分（或 settled=1）扣可提现余额
+        if (remain.compareTo(BigDecimal.ZERO) > 0) {
+            deductBalance(order, playerId, remain, refundAmount);
+        }
+    }
+
+    /**
+     * 从 PRIMARY 行剩余 settleAmount 与钱包 pendingBalance 同步扣回。
+     *
+     * @return 扣完待入账后仍需继续扣的金额
+     */
+    private BigDecimal deductPendingForPrimary(Order order, Long playerId,
+                                              BigDecimal remain, BigDecimal refundAmount) {
+        OrderPlayer primary = findPrimaryOrderPlayer(order.getId(), playerId);
+        BigDecimal pendingPart = primary != null ? amountOrZero(primary.getSettleAmount()) : BigDecimal.ZERO;
+        BigDecimal deductPending = remain.min(pendingPart);
+        if (deductPending.compareTo(BigDecimal.ZERO) <= 0) {
+            return remain;
+        }
+
+        PlayerWallet wallet = playerWalletService.getByPlayerId(playerId);
+        if (wallet == null) {
+            log.warn("退款待入账扣回失败: 打手钱包不存在, playerId={}, orderId={}", playerId, order.getId());
+            return remain;
+        }
+        // 避免 pending 为负：实际扣额不超过当前 pendingBalance
+        BigDecimal walletPending = amountOrZero(wallet.getPendingBalance());
+        deductPending = deductPending.min(walletPending);
+        if (deductPending.compareTo(BigDecimal.ZERO) <= 0) {
+            log.warn("退款待入账扣回跳过: pending 不足, playerId={}, orderId={}, settleAmount={}, pending={}",
+                    playerId, order.getId(), pendingPart, walletPending);
+            return remain;
+        }
+
+        BigDecimal pendingBefore = walletPending;
+        wallet.setPendingBalance(pendingBefore.subtract(deductPending));
+        playerWalletService.updateById(wallet);
+
+        primary.setSettleAmount(pendingPart.subtract(deductPending));
+        orderPlayerService.updateById(primary);
+
+        transactionService.record("REFUND", "PLAYER", playerId, deductPending.negate(),
+                pendingBefore, wallet.getPendingBalance(), order.getId(), null, null,
+                "投诉仲裁退款待入账扣回，订单金额退款：" + refundAmount);
+        log.info("投诉仲裁退款，已从打手{}待入账扣除{}，orderId={}", playerId, deductPending, order.getId());
+        return remain.subtract(deductPending);
+    }
+
+    /** 与现网一致：只扣可提现余额，不超过当前 balance。 */
+    private void deductBalance(Order order, Long playerId, BigDecimal remain, BigDecimal refundAmount) {
+        PlayerWallet wallet = playerWalletService.getByPlayerId(playerId);
+        if (wallet == null) {
+            log.warn("退款扣款失败: 打手钱包不存在, playerId={}, orderId={}", playerId, order.getId());
+            return;
+        }
+        BigDecimal balanceBefore = amountOrZero(wallet.getBalance());
+        BigDecimal deduction = remain.min(balanceBefore);
+        if (deduction.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        wallet.setBalance(balanceBefore.subtract(deduction));
+        playerWalletService.updateById(wallet);
+        transactionService.record("REFUND", "PLAYER", playerId, deduction.negate(),
+                balanceBefore, wallet.getBalance(), order.getId(), null, null,
+                "投诉仲裁退款扣除收益，订单金额退款：" + refundAmount);
+        log.info("投诉仲裁退款，已从打手{}钱包扣除{}，orderId={}", playerId, deduction, order.getId());
+    }
+
+    /** PRIMARY + playerId，取最新一条（与结算监听一致）。 */
+    private OrderPlayer findPrimaryOrderPlayer(Long orderId, Long playerId) {
+        List<OrderPlayer> list = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
+                .eq(OrderPlayer::getOrderId, orderId)
+                .eq(OrderPlayer::getPlayerId, playerId)
+                .eq(OrderPlayer::getRole, "PRIMARY")
+                .orderByDesc(OrderPlayer::getId)
+                .last("LIMIT 1"));
+        return list.isEmpty() ? null : list.get(0);
     }
 
     private record ReleaseItem(OrderPlayer op, PlayerWallet wallet, BigDecimal amount) {}

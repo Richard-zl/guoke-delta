@@ -19,8 +19,7 @@ public interface PlayerIncomeService {
 
     /**
      * 仲裁退款扣回：settled=2 先扣主打手本单剩余 settleAmount/pending，再扣 balance；
-     * settled=1 只扣 balance。拟扣上限为 refundAmount（与现网 CsComplaintController 一致）。
-     * Task 5 补全实现。
+     * settled=1 只扣 balance。拟扣上限为 refundAmount（与现网一致，仅扣 order.playerId）。
      */
     void deductForOrderRefund(Order order, BigDecimal refundAmount);
 }

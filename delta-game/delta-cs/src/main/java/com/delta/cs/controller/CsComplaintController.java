@@ -18,10 +18,8 @@ import com.delta.pay.entity.Payment;
 import com.delta.pay.service.PaymentService;
 import com.delta.order.service.OrderProgressService;
 import com.delta.player.entity.Player;
+import com.delta.player.service.PlayerIncomeService;
 import com.delta.player.service.PlayerService;
-import com.delta.player.entity.PlayerWallet;
-import com.delta.player.service.PlayerWalletService;
-import com.delta.pay.service.TransactionService;
 import com.delta.common.mapper.CrossModuleMapper;
 import com.delta.order.dto.ComplaintDetailVO;
 import lombok.RequiredArgsConstructor;
@@ -41,8 +39,7 @@ public class CsComplaintController {
     private final OrderProgressService orderProgressService;
     private final PaymentService paymentService;
     private final PlayerService playerService;
-    private final PlayerWalletService playerWalletService;
-    private final TransactionService transactionService;
+    private final PlayerIncomeService playerIncomeService;
     private final ApplicationEventPublisher eventPublisher;
     private final CrossModuleMapper crossModuleMapper;
 
@@ -270,39 +267,9 @@ public class CsComplaintController {
     }
 
     /**
-     * 如果订单已经结算给打手，则在退款时从打手钱包中扣回对应收益
+     * 若订单已结算/待入账，委托收入服务扣回打手收益（settled=2 先扣待入账）。
      */
     private void refundPlayerIncomeIfSettled(Order order, java.math.BigDecimal refundAmount) {
-        if (refundAmount == null || refundAmount.compareTo(java.math.BigDecimal.ZERO) <= 0) return;
-        if (order == null) return;
-        // 未结算，不需要从打手端扣款
-        if (order.getSettled() == null || order.getSettled() != 1) {
-            return;
-        }
-        if (order.getPlayerId() == null) return;
-
-        PlayerWallet wallet = playerWalletService.getByPlayerId(order.getPlayerId());
-        if (wallet == null) {
-            log.warn("退款扣款失败: 打手钱包不存在, playerId={}, orderId={}", order.getPlayerId(), order.getId());
-            return;
-        }
-        java.math.BigDecimal balanceBefore = wallet.getBalance();
-        if (balanceBefore == null) balanceBefore = java.math.BigDecimal.ZERO;
-        // 为避免余额为负，扣款额不超过当前余额
-        java.math.BigDecimal deduction = refundAmount.min(balanceBefore);
-        if (deduction.compareTo(java.math.BigDecimal.ZERO) <= 0) {
-            return;
-        }
-        java.math.BigDecimal balanceAfter = balanceBefore.subtract(deduction);
-        wallet.setBalance(balanceAfter);
-        playerWalletService.updateById(wallet);
-
-        // 记录一条打手端退款扣款流水
-        transactionService.record("REFUND", "PLAYER", order.getPlayerId(),
-                deduction.negate(), // 扣款记为负数
-                balanceBefore, balanceAfter,
-                order.getId(), null, null,
-                "投诉仲裁退款扣除收益，订单金额退款：" + refundAmount);
-        log.info("投诉仲裁退款，已从打手{}钱包扣除{}，orderId={}", order.getPlayerId(), deduction, order.getId());
+        playerIncomeService.deductForOrderRefund(order, refundAmount);
     }
 }
