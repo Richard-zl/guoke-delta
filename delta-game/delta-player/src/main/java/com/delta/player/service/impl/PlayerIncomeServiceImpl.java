@@ -86,9 +86,14 @@ public class PlayerIncomeServiceImpl implements PlayerIncomeService {
         List<OrderPlayer> players = listReleasePlayers(orderId);
         LocalDateTime now = LocalDateTime.now();
 
+        if (players.isEmpty()) {
+            log.error("待入账释放跳过: order_player 行缺失, orderId={}", orderId);
+            return false;
+        }
+
         // 全部 settleAmount 为 0/null：只改订单状态
         boolean allZero = players.stream().allMatch(op -> amountOrZero(op.getSettleAmount()).signum() <= 0);
-        if (players.isEmpty() || allZero) {
+        if (allZero) {
             order.setSettled(1);
             order.setSettleTime(now);
             orderService.updateById(order);
