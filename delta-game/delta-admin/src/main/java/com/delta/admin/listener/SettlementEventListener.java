@@ -6,7 +6,6 @@ import com.delta.order.entity.Order;
 import com.delta.order.entity.OrderPlayer;
 import com.delta.order.service.OrderPlayerService;
 import com.delta.order.service.OrderService;
-import com.delta.pay.service.TransactionService;
 import com.delta.player.entity.PlayerWallet;
 import com.delta.player.service.PlayerWalletService;
 import com.delta.system.service.SysConfigService;
@@ -22,7 +21,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 订单确认后自动结算 —— 将收益写入打手钱包
+ * 订单确认后记待入账 —— 累加 pending_balance，到期由定时任务释放到可提现余额
  */
 @Slf4j
 @Component
@@ -32,7 +31,6 @@ public class SettlementEventListener {
     private final OrderService orderService;
     private final OrderPlayerService orderPlayerService;
     private final PlayerWalletService playerWalletService;
-    private final TransactionService transactionService;
     private final SysConfigService sysConfigService;
 
     @EventListener
@@ -44,9 +42,9 @@ public class SettlementEventListener {
             log.warn("结算跳过: 订单不存在或无打手, orderId={}", orderId);
             return;
         }
-        // 防止重复结算
-        if (order.getSettled() != null && order.getSettled() == 1) {
-            log.warn("结算跳过: 订单已结算, orderId={}", orderId);
+        // 防止重复结算（已入账或已记待入账）
+        if (order.getSettled() != null && (order.getSettled() == 1 || order.getSettled() == 2)) {
+            log.warn("结算跳过: 订单已结算或待入账, orderId={}, settled={}", orderId, order.getSettled());
             return;
         }
 
@@ -73,24 +71,22 @@ public class SettlementEventListener {
 
         BigDecimal primaryIncome = playerTotalIncome; // 默认全归主打手
 
-        // 给每位队友结算
+        // 给每位队友记待入账
         for (OrderPlayer tm : teammates) {
             BigDecimal tmIncome = calcTeammateIncome(playerTotalIncome, tm, teammates.size());
             if (tmIncome.compareTo(BigDecimal.ZERO) <= 0) continue;
             primaryIncome = primaryIncome.subtract(tmIncome);
-            // 更新队友钱包
-            creditWallet(tm.getPlayerId(), tmIncome, orderId,
+            creditPending(tm.getPlayerId(), tmIncome, orderId,
                     String.format("队友分成: 订单金额¥%s, 分成¥%s", orderAmount.toPlainString(), tmIncome.toPlainString()));
-            // 更新 OrderPlayer 结算信息
+            // 确认时只写 settleAmount，settledAt 留空待入账任务再写
             tm.setSettleAmount(tmIncome);
-            tm.setSettledAt(LocalDateTime.now());
             orderPlayerService.updateById(tm);
-            log.info("队友结算: orderId={}, playerId={}, 分成={}", orderId, tm.getPlayerId(), tmIncome);
+            log.info("队友待入账: orderId={}, playerId={}, 分成={}", orderId, tm.getPlayerId(), tmIncome);
         }
 
-        // 主打手结算（扣除队友分成后的剩余）
+        // 主打手待入账（扣除队友分成后的剩余）
         if (primaryIncome.compareTo(BigDecimal.ZERO) > 0) {
-            creditWallet(primaryPlayerId, primaryIncome, orderId,
+            creditPending(primaryPlayerId, primaryIncome, orderId,
                     String.format("订单金额:¥%s, 抽成:%s%%, 抽成¥%s, 打手总收入¥%s, 队友分成后实得¥%s",
                             orderAmount.toPlainString(),
                             commissionRate.multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString(),
@@ -98,7 +94,7 @@ public class SettlementEventListener {
                             playerTotalIncome.toPlainString(),
                             primaryIncome.toPlainString()));
         }
-        // 更新主打手 OrderPlayer 结算信息（防止脏数据导致多条记录，取最新一条）
+        // 更新主打手 OrderPlayer 结算金额（settledAt 留空）
         List<OrderPlayer> primaryOps = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
                 .eq(OrderPlayer::getOrderId, orderId)
                 .eq(OrderPlayer::getPlayerId, primaryPlayerId)
@@ -108,18 +104,20 @@ public class SettlementEventListener {
         if (!primaryOps.isEmpty()) {
             OrderPlayer primaryOp = primaryOps.get(0);
             primaryOp.setSettleAmount(primaryIncome);
-            primaryOp.setSettledAt(LocalDateTime.now());
             orderPlayerService.updateById(primaryOp);
         }
 
-        // 标记订单已结算
-        order.setSettled(1);
+        // 标记订单待入账，设置预计可入账时间
+        int delayDays = Integer.parseInt(sysConfigService.getConfigValue("settlement.delay_days", "5"));
+        LocalDateTime confirmTime = order.getConfirmTime() != null ? order.getConfirmTime() : LocalDateTime.now();
+        order.setSettled(2);
         order.setSettleAmount(playerTotalIncome);
-        order.setSettleTime(LocalDateTime.now());
+        order.setSettleAvailableAt(confirmTime.plusDays(delayDays));
         orderService.updateById(order);
 
-        log.info("订单结算完成: orderId={}, 订单金额={}, 抽成={}, 打手总收入={}, 主打手实得={}, 队友数={}",
-                orderId, orderAmount, commission, playerTotalIncome, primaryIncome, teammates.size());
+        log.info("订单待入账完成: orderId={}, 订单金额={}, 抽成={}, 打手总收入={}, 主打手实得={}, 队友数={}, settleAvailableAt={}",
+                orderId, orderAmount, commission, playerTotalIncome, primaryIncome, teammates.size(),
+                order.getSettleAvailableAt());
     }
 
     /**
@@ -138,20 +136,20 @@ public class SettlementEventListener {
     }
 
     /**
-     * 给指定打手钱包加款 + 创建交易记录
+     * 给指定打手累加待入账余额（不改 balance / totalIncome，不写 INCOME 流水）
      */
-    private void creditWallet(Long playerId, BigDecimal income, Long orderId, String remark) {
+    private void creditPending(Long playerId, BigDecimal income, Long orderId, String remark) {
         PlayerWallet wallet = playerWalletService.getByPlayerId(playerId);
         if (wallet == null) {
             playerWalletService.initWallet(playerId);
             wallet = playerWalletService.getByPlayerId(playerId);
         }
-        BigDecimal balanceBefore = wallet.getBalance();
-        BigDecimal balanceAfter = balanceBefore.add(income);
-        wallet.setBalance(balanceAfter);
-        wallet.setTotalIncome(wallet.getTotalIncome().add(income));
+        if (wallet.getPendingBalance() == null) {
+            wallet.setPendingBalance(BigDecimal.ZERO);
+        }
+        wallet.setPendingBalance(wallet.getPendingBalance().add(income));
         playerWalletService.updateById(wallet);
-        transactionService.record("INCOME", "PLAYER", playerId,
-                income, balanceBefore, balanceAfter, orderId, null, null, remark);
+        log.info("记待入账: orderId={}, playerId={}, amount={}, remark={}",
+                orderId, playerId, income, remark);
     }
 }
