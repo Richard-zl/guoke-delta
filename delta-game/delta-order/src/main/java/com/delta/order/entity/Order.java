@@ -61,6 +61,8 @@ public class Order {
     private Integer settled;
     private BigDecimal settleAmount;
     private LocalDateTime settleTime;
+    /** 预计入账时间；settled=2 时有效 */
+    private LocalDateTime settleAvailableAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

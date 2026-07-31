@@ -21,6 +21,7 @@ public class PlayerWalletServiceImpl extends ServiceImpl<PlayerWalletMapper, Pla
         PlayerWallet wallet = new PlayerWallet();
         wallet.setPlayerId(playerId);
         wallet.setBalance(BigDecimal.ZERO);
+        wallet.setPendingBalance(BigDecimal.ZERO);
         wallet.setFrozenAmount(BigDecimal.ZERO);
         wallet.setTotalIncome(BigDecimal.ZERO);
         save(wallet);

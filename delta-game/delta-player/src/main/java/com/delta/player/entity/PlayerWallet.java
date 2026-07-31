@@ -14,6 +14,7 @@ public class PlayerWallet extends BaseEntity {
     private Long id;
     private Long playerId;
     private BigDecimal balance;
+    private BigDecimal pendingBalance;
     private BigDecimal frozenAmount;
     private BigDecimal totalIncome;
 }
