@@ -15,6 +15,7 @@ import com.delta.player.entity.Withdraw;
 import com.delta.player.service.PlayerService;
 import com.delta.player.service.PlayerWalletService;
 import com.delta.player.service.WithdrawService;
+import com.delta.player.util.WithdrawTimeWindowHelper;
 import com.delta.system.service.SysConfigService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -26,6 +27,8 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/player/withdraw")
@@ -44,6 +47,20 @@ public class WithdrawController {
         Long playerId = SecurityUtils.getUserId();
         return R.ok(withdrawService.page(new Page<>(query.getPageNum(), query.getPageSize()),
                 new LambdaQueryWrapper<Withdraw>().eq(Withdraw::getPlayerId, playerId).orderByDesc(Withdraw::getCreatedAt)));
+    }
+
+    @GetMapping("/window")
+    public R<Map<String, Object>> window() {
+        var windows = WithdrawTimeWindowHelper.parseWindows(
+                sysConfigService.getConfigValue("withdraw.time_windows", ""));
+        boolean in = WithdrawTimeWindowHelper.isInWindow(LocalDateTime.now(), windows);
+        String text = WithdrawTimeWindowHelper.buildWindowsText(windows);
+        Map<String, Object> data = new HashMap<>();
+        data.put("inWithdrawWindow", in);
+        data.put("windowsText", text);
+        data.put("windows", windows);
+        data.put("nextWindowHint", in ? "" : text);
+        return R.ok(data);
     }
 
     @GetMapping("/{id}")
@@ -72,6 +89,13 @@ public class WithdrawController {
         BigDecimal minAmount = new BigDecimal(minStr);
         if (req.getAmount() == null || req.getAmount().compareTo(minAmount) < 0) {
             throw new BusinessException("最低提现金额为" + minAmount + "元");
+        }
+
+        var windows = WithdrawTimeWindowHelper.parseWindows(
+                sysConfigService.getConfigValue("withdraw.time_windows", ""));
+        if (!WithdrawTimeWindowHelper.isInWindow(LocalDateTime.now(), windows)) {
+            throw new BusinessException("当前不在提现时间。可提现时间："
+                    + WithdrawTimeWindowHelper.buildWindowsText(windows));
         }
 
         // 1.5 每日提现次数上限校验

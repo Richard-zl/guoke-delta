@@ -41,6 +41,7 @@ export const getEarningsSummary = () => get('/player/earnings/summary', {}, { ro
 export const getEarningsDetail = (params) => get('/player/earnings/detail', params, { role: 'player' })
 
 // ========== 提现 ==========
+export const getWithdrawWindow = () => get('/player/withdraw/window', {}, { role: 'player' })
 export const applyWithdraw = (data) => post('/player/withdraw', data, { role: 'player' })
 export const getWithdrawList = (params) => get('/player/withdraw', params, { role: 'player' })
 export const getWithdrawDetail = (id) => get(`/player/withdraw/${id}`, {}, { role: 'player' })

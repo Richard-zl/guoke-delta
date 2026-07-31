@@ -4,6 +4,8 @@
     <view class="balance-card">
       <text class="label">可提现金额（元）</text>
       <text class="amount">¥{{ balance }}</text>
+      <text class="pending-label">待入账 ¥{{ pendingBalance }}</text>
+      <text v-if="delayDays > 0" class="delay-hint">确认后满 {{ delayDays }} 天转入可提现</text>
     </view>
 
     <!-- 提现规则（微信审核要求清晰展示） -->
@@ -34,7 +36,7 @@
       </view>
     </view>
     <view class="btn-area">
-      <view class="submit-btn" @click="doSubmit">确认提现</view>
+      <view :class="['submit-btn', { disabled: !inWithdrawWindow }]" @click="doSubmit">确认提现</view>
     </view>
     <view class="links">
       <text class="link" @click="goList">提现记录</text>
@@ -61,29 +63,52 @@ const { pageBlocked } = useAuditPageGuard()
 import { ref, reactive, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import EmptyState from '@/components/EmptyState.vue'
-import { applyWithdraw, getAccountList, getEarningsSummary } from '@/api/player'
+import { applyWithdraw, getAccountList, getEarningsSummary, getWithdrawWindow } from '@/api/player'
 import {
   WITHDRAW_MIN_AMOUNT,
   WITHDRAW_RULE_ITEMS
 } from '@/constants/withdrawRules'
 
-const withdrawRules = WITHDRAW_RULE_ITEMS
+const withdrawRules = ref([...WITHDRAW_RULE_ITEMS])
 const amountPlaceholder = computed(() => `请输入提现金额（最低 ¥${WITHDRAW_MIN_AMOUNT}）`)
 
 const balance = ref('0.00')
+const pendingBalance = ref('0.00')
+const delayDays = ref(0)
+const inWithdrawWindow = ref(true)
+const windowHint = ref('')
 const form = reactive({ amount: '', accountId: '', remark: '' })
 const accounts = ref([])
 const selectedAccount = ref(null)
 const showAccountPicker = ref(false)
 
 onShow(async () => {
-  try { const res = await getEarningsSummary(); balance.value = Number(res.data?.balance || 0).toFixed(2) } catch (e) {}
+  try {
+    const res = await getEarningsSummary()
+    balance.value = Number(res.data?.balance || 0).toFixed(2)
+    pendingBalance.value = Number(res.data?.pendingBalance || 0).toFixed(2)
+    delayDays.value = Number(res.data?.delayDays || 0)
+  } catch (e) {}
   try { const res = await getAccountList(); accounts.value = res.data || [] } catch (e) {}
+  try {
+    const res = await getWithdrawWindow()
+    const data = res.data || {}
+    inWithdrawWindow.value = data.inWithdrawWindow !== false
+    windowHint.value = data.nextWindowHint || data.windowsText || ''
+    if (data.windowsText) {
+      withdrawRules.value = WITHDRAW_RULE_ITEMS.map(rule =>
+        rule.label === '提现时间' ? { ...rule, text: data.windowsText } : rule
+      )
+    }
+  } catch (e) {}
 })
 
 function accountDisplay(a) { return `${a.type === 'ALIPAY' ? '支付宝' : a.type === 'WECHAT' ? '微信' : a.type === 'BANK' ? '银行卡' : a.type} ${(a.accountNo || '').replace(/(.{3}).*(.{4})/, '$1****$2')}` }
 function selectAccount(a) { selectedAccount.value = a; form.accountId = a.id; showAccountPicker.value = false }
 async function doSubmit() {
+  if (!inWithdrawWindow.value) {
+    return uni.showToast({ title: windowHint.value || '当前不在提现时间窗口内', icon: 'none' })
+  }
   if (!form.amount || Number(form.amount) <= 0) return uni.showToast({ title: '请输入金额', icon: 'none' })
   if (Number(form.amount) < WITHDRAW_MIN_AMOUNT) {
     return uni.showToast({ title: `最低提现金额为 ¥${WITHDRAW_MIN_AMOUNT}`, icon: 'none' })
@@ -102,7 +127,10 @@ function goAccounts() { uni.navigateTo({ url: '/pages-player/account/list' }) }
 <style lang="scss" scoped>
 .withdraw-page { background: #ffffff; min-height: 100vh; }
 .balance-card { background: linear-gradient(135deg, #ff4544, #e63939, #e63939); color: #ffffff; font-weight:bold; margin: 24rpx; border-radius: 16rpx; padding: 40rpx 32rpx;
-  .label { font-size: 26rpx; opacity: 0.85; display: block; } .amount { font-size: 56rpx; font-weight: bold; display: block; margin-top: 12rpx; }
+  .label { font-size: 26rpx; opacity: 0.85; display: block; }
+  .amount { font-size: 56rpx; font-weight: bold; display: block; margin-top: 12rpx; }
+  .pending-label { font-size: 24rpx; opacity: 0.85; display: block; margin-top: 12rpx; }
+  .delay-hint { font-size: 22rpx; opacity: 0.8; display: block; margin-top: 8rpx; }
 }
 .rules-card {
   margin: 0 24rpx 24rpx;
@@ -121,7 +149,9 @@ function goAccounts() { uni.navigateTo({ url: '/pages-player/account/list' }) }
   .pick-text { flex: 1; font-size: 28rpx; color: #1e293b; &.placeholder { color: #cbd5e1; } } .arrow { color: #cbd5e1; } .all-btn { font-size: 26rpx; color: #ff4544; }
 }
 .btn-area { padding: 40rpx 24rpx 16rpx; }
-.submit-btn { background: linear-gradient(135deg, #ff4544, #e63939, #e63939); color: #ffffff; font-weight:bold; text-align: center; padding: 24rpx; border-radius: 999rpx; font-size: 30rpx; }
+.submit-btn { background: linear-gradient(135deg, #ff4544, #e63939, #e63939); color: #ffffff; font-weight:bold; text-align: center; padding: 24rpx; border-radius: 999rpx; font-size: 30rpx;
+  &.disabled { opacity: 0.5; }
+}
 .links { display: flex; justify-content: center; gap: 48rpx; padding: 24rpx; .link { font-size: 26rpx; color: #ff4544; } }
 .mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: flex-end; z-index: 999; }
 .picker-popup { width: 100%; background: #ffffff; border-radius: 24rpx 24rpx 0 0; border-top: 1rpx solid #e2e8f0; padding: 32rpx 24rpx; max-height: 60vh; overflow-y: auto;

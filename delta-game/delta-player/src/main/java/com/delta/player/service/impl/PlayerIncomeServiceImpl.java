@@ -2,8 +2,6 @@ package com.delta.player.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.delta.common.event.BusinessEvent;
-import com.delta.common.event.OrderConfirmedEvent;
-import com.delta.common.exception.BusinessException;
 import com.delta.order.entity.Order;
 import com.delta.order.entity.OrderPlayer;
 import com.delta.order.service.OrderPlayerService;
@@ -15,152 +13,272 @@ import com.delta.player.service.PlayerWalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 打手收入服务：定时释放待入账；仲裁退款先扣待入账再扣余额。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PlayerIncomeServiceImpl implements PlayerIncomeService {
+
     private final OrderService orderService;
     private final OrderPlayerService orderPlayerService;
     private final PlayerWalletService playerWalletService;
     private final TransactionService transactionService;
     private final ApplicationEventPublisher eventPublisher;
-
-    @EventListener
-    public void onOrderConfirmed(OrderConfirmedEvent event) {
-        settleOrder(event.getOrderId());
-    }
-
-    /** 平台抽成比例（默认20%） */
-    private static final BigDecimal PLATFORM_RATE = new BigDecimal("0.20");
+    private final PlatformTransactionManager transactionManager;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void settleOrder(Long orderId) {
-        Order order = orderService.getById(orderId);
-        if (order == null) throw new BusinessException("订单不存在");
-        if (order.getSettled() != null && order.getSettled() == 1) {
-            log.warn("订单{}已结算，跳过", orderId);
-            return;
+    public int releaseDueSettlements(int limit) {
+        int batchSize = Math.max(1, limit);
+        List<Order> due = orderService.list(new LambdaQueryWrapper<Order>()
+                .eq(Order::getSettled, 2)
+                .le(Order::getSettleAvailableAt, LocalDateTime.now())
+                .orderByAsc(Order::getSettleAvailableAt)
+                .last("LIMIT " + batchSize));
+        if (due.isEmpty()) {
+            return 0;
         }
 
-        // 计算打手可分金额 = 订单金额 * (1 - 平台抽成)
-        BigDecimal totalSettleAmount = order.getAmount()
-                .multiply(BigDecimal.ONE.subtract(PLATFORM_RATE))
-                .setScale(2, RoundingMode.HALF_UP);
-
-        // 查询该订单的所有已接受打手
-        List<OrderPlayer> players = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
-                .eq(OrderPlayer::getOrderId, orderId)
-                .eq(OrderPlayer::getStatus, "ACCEPTED"));
-
-        if (players.isEmpty()) {
-            // 无order_player记录，直接用order.playerId（兜底）
-            settleToPlayer(order.getPlayerId(), orderId, totalSettleAmount, "主接结算");
-        } else if (players.size() == 1) {
-            // 单人订单：全额归主接打手
-            OrderPlayer op = players.get(0);
-            op.setSettleAmount(totalSettleAmount);
-            op.setSettledAt(LocalDateTime.now());
-            orderPlayerService.updateById(op);
-            settleToPlayer(op.getPlayerId(), orderId, totalSettleAmount, "主接结算");
-        } else {
-            // 多人订单：根据分成方案计算
-            settleMultiPlayer(players, totalSettleAmount, orderId);
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        int ok = 0;
+        for (Order order : due) {
+            Boolean success = tx.execute(status -> {
+                try {
+                    return releaseOne(order.getId());
+                } catch (Exception e) {
+                    log.error("释放待入账异常，整单回滚: orderId={}", order.getId(), e);
+                    status.setRollbackOnly();
+                    return false;
+                }
+            });
+            if (Boolean.TRUE.equals(success)) {
+                ok++;
+            }
         }
-
-        // 更新订单结算标记
-        order.setSettled(1);
-        order.setSettleAmount(totalSettleAmount);
-        order.setSettleTime(LocalDateTime.now());
-        orderService.updateById(order);
-        log.info("订单{}结算完成，结算金额{}", orderId, totalSettleAmount);
+        return ok;
     }
 
     /**
-     * 多人订单分成结算：根据队友的split_type计算
+     * 单笔订单释放（在调用方事务中执行）。
+     *
+     * @return true 已入账或零额结清；false 跳过（不足/状态不符）
      */
-    private void settleMultiPlayer(List<OrderPlayer> players, BigDecimal totalAmount, Long orderId) {
-        // 找出主接打手和队友
-        OrderPlayer primary = players.stream()
-                .filter(p -> "PRIMARY".equals(p.getRole())).findFirst().orElse(null);
-        OrderPlayer teammate = players.stream()
-                .filter(p -> "TEAMMATE".equals(p.getRole())).findFirst().orElse(null);
-
-        if (primary == null) {
-            // 兜底：如果没有PRIMARY标记，取第一个作为主接
-            primary = players.get(0);
-            teammate = players.size() > 1 ? players.get(1) : null;
+    private boolean releaseOne(Long orderId) {
+        Order order = orderService.getById(orderId);
+        if (order == null || order.getSettled() == null || order.getSettled() != 2) {
+            return false;
+        }
+        if (order.getSettleAvailableAt() != null
+                && order.getSettleAvailableAt().isAfter(LocalDateTime.now())) {
+            return false;
         }
 
-        BigDecimal primaryAmount;
-        BigDecimal teammateAmount = BigDecimal.ZERO;
+        List<OrderPlayer> players = listReleasePlayers(orderId);
+        LocalDateTime now = LocalDateTime.now();
 
-        if (teammate != null && teammate.getSplitType() != null) {
-            // 根据分成类型计算队友收入
-            teammateAmount = switch (teammate.getSplitType()) {
-                case "FIFTY_FIFTY" -> totalAmount.multiply(new BigDecimal("0.50")).setScale(2, RoundingMode.HALF_UP);
-                case "FORTY_SIXTY" -> totalAmount.multiply(new BigDecimal("0.40")).setScale(2, RoundingMode.HALF_UP);
-                case "THIRTY_SEVENTY" -> totalAmount.multiply(new BigDecimal("0.30")).setScale(2, RoundingMode.HALF_UP);
-                case "CUSTOM" -> teammate.getSplitAmount() != null ? teammate.getSplitAmount() : BigDecimal.ZERO;
-                default -> totalAmount.divide(new BigDecimal("2"), 2, RoundingMode.HALF_UP);
-            };
-            // 校验自定义金额不超过总收入
-            if (teammateAmount.compareTo(totalAmount) > 0) {
-                teammateAmount = totalAmount.divide(new BigDecimal("2"), 2, RoundingMode.HALF_UP);
+        if (players.isEmpty()) {
+            log.error("待入账释放跳过: order_player 行缺失, orderId={}", orderId);
+            return false;
+        }
+
+        // 全部 settleAmount 为 0/null：只改订单状态
+        boolean allZero = players.stream().allMatch(op -> amountOrZero(op.getSettleAmount()).signum() <= 0);
+        if (allZero) {
+            order.setSettled(1);
+            order.setSettleTime(now);
+            orderService.updateById(order);
+            log.info("待入账零额结清: orderId={}", orderId);
+            return true;
+        }
+
+        // 预检：每人 pendingBalance >= settleAmount
+        List<ReleaseItem> items = new ArrayList<>();
+        for (OrderPlayer op : players) {
+            BigDecimal amount = amountOrZero(op.getSettleAmount());
+            if (amount.signum() <= 0) {
+                continue;
             }
-            primaryAmount = totalAmount.subtract(teammateAmount);
-        } else {
-            // 无分成方案，均分
-            primaryAmount = totalAmount.divide(new BigDecimal("2"), 2, RoundingMode.HALF_UP);
-            teammateAmount = totalAmount.subtract(primaryAmount);
+            PlayerWallet wallet = playerWalletService.getByPlayerId(op.getPlayerId());
+            if (wallet == null) {
+                log.error("待入账释放跳过: 钱包不存在, orderId={}, playerId={}, settleAmount={}",
+                        orderId, op.getPlayerId(), amount);
+                return false;
+            }
+            BigDecimal pending = amountOrZero(wallet.getPendingBalance());
+            if (pending.compareTo(amount) < 0) {
+                log.error("待入账释放跳过: pending 不足, orderId={}, playerId={}, pending={}, settleAmount={}",
+                        orderId, op.getPlayerId(), pending, amount);
+                return false;
+            }
+            items.add(new ReleaseItem(op, wallet, amount));
         }
 
-        // 结算主接打手
-        primary.setSettleAmount(primaryAmount);
-        primary.setSettledAt(LocalDateTime.now());
-        orderPlayerService.updateById(primary);
-        settleToPlayer(primary.getPlayerId(), orderId, primaryAmount, "主接分成");
+        // 入账：pending→balance，写 INCOME，发通知
+        for (ReleaseItem item : items) {
+            PlayerWallet wallet = item.wallet;
+            BigDecimal amount = item.amount;
+            BigDecimal pending = amountOrZero(wallet.getPendingBalance());
+            BigDecimal balanceBefore = amountOrZero(wallet.getBalance());
+            BigDecimal totalIncome = amountOrZero(wallet.getTotalIncome());
 
-        // 结算队友
-        if (teammate != null) {
-            teammate.setSettleAmount(teammateAmount);
-            teammate.setSettledAt(LocalDateTime.now());
-            orderPlayerService.updateById(teammate);
-            settleToPlayer(teammate.getPlayerId(), orderId, teammateAmount, "队友分成");
-            // 通知队友
+            wallet.setPendingBalance(pending.subtract(amount));
+            wallet.setBalance(balanceBefore.add(amount));
+            wallet.setTotalIncome(totalIncome.add(amount));
+            playerWalletService.updateById(wallet);
+
+            transactionService.record("INCOME", "PLAYER", item.op.getPlayerId(), amount,
+                    balanceBefore, wallet.getBalance(), orderId, null, null, "待入账到期释放");
+
+            item.op.setSettledAt(now);
+            orderPlayerService.updateById(item.op);
+
             eventPublisher.publishEvent(new BusinessEvent(this, "INCOME_SETTLED",
-                    "PLAYER", teammate.getPlayerId(), orderId,
-                    "订单已结算，您的分成收入 " + teammateAmount + " 元已到账"));
+                    "PLAYER", item.op.getPlayerId(), orderId,
+                    "订单已结算，您的分成收入 " + amount.toPlainString() + " 元已到账"));
         }
 
-        // 通知主接打手
-        eventPublisher.publishEvent(new BusinessEvent(this, "INCOME_SETTLED",
-                "PLAYER", primary.getPlayerId(), orderId,
-                "订单已结算，您的分成收入 " + primaryAmount + " 元已到账"));
+        order.setSettled(1);
+        order.setSettleTime(now);
+        orderService.updateById(order);
+        log.info("待入账释放成功: orderId={}, players={}", orderId, items.size());
+        return true;
     }
 
-    private void settleToPlayer(Long playerId, Long orderId, BigDecimal amount, String remark) {
-        PlayerWallet wallet = playerWalletService.getByPlayerId(playerId);
-        if (wallet == null) {
-            log.error("打手{}钱包不存在，订单{}结算失败", playerId, orderId);
+    /**
+     * 最新 PRIMARY（LIMIT 1）+ 全部 ACCEPTED TEAMMATE（按本单剩余 settleAmount 入账）。
+     */
+    private List<OrderPlayer> listReleasePlayers(Long orderId) {
+        List<OrderPlayer> result = new ArrayList<>();
+        // 仅取最新 PRIMARY，与结算记待入账时一致，避免重复入账
+        List<OrderPlayer> primaryOps = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
+                .eq(OrderPlayer::getOrderId, orderId)
+                .eq(OrderPlayer::getRole, "PRIMARY")
+                .orderByDesc(OrderPlayer::getId)
+                .last("LIMIT 1"));
+        result.addAll(primaryOps);
+        List<OrderPlayer> teammates = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
+                .eq(OrderPlayer::getOrderId, orderId)
+                .eq(OrderPlayer::getRole, "TEAMMATE")
+                .eq(OrderPlayer::getStatus, "ACCEPTED"));
+        result.addAll(teammates);
+        return result;
+    }
+
+    private static BigDecimal amountOrZero(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deductForOrderRefund(Order order, BigDecimal refundAmount) {
+        if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
-        BigDecimal balanceBefore = wallet.getBalance();
-        wallet.setBalance(wallet.getBalance().add(amount));
-        wallet.setTotalIncome(wallet.getTotalIncome().add(amount));
+        if (order == null || order.getPlayerId() == null) {
+            return;
+        }
+        Integer settled = order.getSettled();
+        if (settled == null || (settled != 1 && settled != 2)) {
+            return;
+        }
+
+        BigDecimal remain = refundAmount;
+        Long playerId = order.getPlayerId();
+
+        // settled=2：先扣主打手本单剩余待入账
+        if (settled == 2) {
+            remain = deductPendingForPrimary(order, playerId, remain, refundAmount);
+        }
+
+        // 不足部分（或 settled=1）扣可提现余额
+        if (remain.compareTo(BigDecimal.ZERO) > 0) {
+            deductBalance(order, playerId, remain, refundAmount);
+        }
+    }
+
+    /**
+     * 从 PRIMARY 行剩余 settleAmount 与钱包 pendingBalance 同步扣回。
+     *
+     * @return 扣完待入账后仍需继续扣的金额
+     */
+    private BigDecimal deductPendingForPrimary(Order order, Long playerId,
+                                              BigDecimal remain, BigDecimal refundAmount) {
+        OrderPlayer primary = findPrimaryOrderPlayer(order.getId(), playerId);
+        BigDecimal pendingPart = primary != null ? amountOrZero(primary.getSettleAmount()) : BigDecimal.ZERO;
+        BigDecimal deductPending = remain.min(pendingPart);
+        if (deductPending.compareTo(BigDecimal.ZERO) <= 0) {
+            return remain;
+        }
+
+        PlayerWallet wallet = playerWalletService.getByPlayerId(playerId);
+        if (wallet == null) {
+            log.warn("退款待入账扣回失败: 打手钱包不存在, playerId={}, orderId={}", playerId, order.getId());
+            return remain;
+        }
+        // 避免 pending 为负：实际扣额不超过当前 pendingBalance
+        BigDecimal walletPending = amountOrZero(wallet.getPendingBalance());
+        deductPending = deductPending.min(walletPending);
+        if (deductPending.compareTo(BigDecimal.ZERO) <= 0) {
+            log.warn("退款待入账扣回跳过: pending 不足, playerId={}, orderId={}, settleAmount={}, pending={}",
+                    playerId, order.getId(), pendingPart, walletPending);
+            return remain;
+        }
+
+        BigDecimal pendingBefore = walletPending;
+        wallet.setPendingBalance(pendingBefore.subtract(deductPending));
         playerWalletService.updateById(wallet);
 
-        // 创建交易记录
-        transactionService.record("INCOME", "PLAYER", playerId, amount,
-                balanceBefore, wallet.getBalance(), orderId, null, null, remark);
+        primary.setSettleAmount(pendingPart.subtract(deductPending));
+        orderPlayerService.updateById(primary);
+
+        transactionService.record("REFUND", "PLAYER", playerId, deductPending.negate(),
+                pendingBefore, wallet.getPendingBalance(), order.getId(), null, null,
+                "投诉仲裁退款待入账扣回，订单金额退款：" + refundAmount);
+        log.info("投诉仲裁退款，已从打手{}待入账扣除{}，orderId={}", playerId, deductPending, order.getId());
+        return remain.subtract(deductPending);
     }
+
+    /** 与现网一致：只扣可提现余额，不超过当前 balance。 */
+    private void deductBalance(Order order, Long playerId, BigDecimal remain, BigDecimal refundAmount) {
+        PlayerWallet wallet = playerWalletService.getByPlayerId(playerId);
+        if (wallet == null) {
+            log.warn("退款扣款失败: 打手钱包不存在, playerId={}, orderId={}", playerId, order.getId());
+            return;
+        }
+        BigDecimal balanceBefore = amountOrZero(wallet.getBalance());
+        BigDecimal deduction = remain.min(balanceBefore);
+        if (deduction.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        wallet.setBalance(balanceBefore.subtract(deduction));
+        playerWalletService.updateById(wallet);
+        transactionService.record("REFUND", "PLAYER", playerId, deduction.negate(),
+                balanceBefore, wallet.getBalance(), order.getId(), null, null,
+                "投诉仲裁退款扣除收益，订单金额退款：" + refundAmount);
+        log.info("投诉仲裁退款，已从打手{}钱包扣除{}，orderId={}", playerId, deduction, order.getId());
+    }
+
+    /** PRIMARY + playerId，取最新一条（与结算监听一致）。 */
+    private OrderPlayer findPrimaryOrderPlayer(Long orderId, Long playerId) {
+        List<OrderPlayer> list = orderPlayerService.list(new LambdaQueryWrapper<OrderPlayer>()
+                .eq(OrderPlayer::getOrderId, orderId)
+                .eq(OrderPlayer::getPlayerId, playerId)
+                .eq(OrderPlayer::getRole, "PRIMARY")
+                .orderByDesc(OrderPlayer::getId)
+                .last("LIMIT 1"));
+        return list.isEmpty() ? null : list.get(0);
+    }
+
+    private record ReleaseItem(OrderPlayer op, PlayerWallet wallet, BigDecimal amount) {}
 }

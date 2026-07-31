@@ -5,6 +5,7 @@
     <view class="summary-card">
       <text class="card-label">累计收益（元）</text>
       <text class="total-amount">¥{{ summary.totalIncome || '0.00' }}</text>
+      <text class="pending-label">待入账 ¥{{ formatMoney(summary.pendingBalance) }}</text>
       <view class="row">
         <view class="col"><text class="num">¥{{ summary.monthIncome || '0.00' }}</text><text class="desc">本月收益</text></view>
         <view class="divider" />
@@ -59,6 +60,10 @@ onShow(async () => {
   try { const res = await getEarningsSummary(); summary.value = res.data || {} } catch (e) {}
 })
 
+function formatMoney(val) {
+  return Number(val || 0).toFixed(2)
+}
+
 function goDetail() { uni.navigateTo({ url: '/pages-player/earnings/detail' }) }
 function goWithdraw() { uni.navigateTo({ url: '/pages-player/withdraw/index' }) }
 </script>
@@ -66,7 +71,8 @@ function goWithdraw() { uni.navigateTo({ url: '/pages-player/withdraw/index' }) 
 .earnings-page { background: #ffffff; min-height: 100vh; }
 .summary-card { background: linear-gradient(135deg, #ff4544, #e63939, #e63939); color: #ffffff; font-weight:bold; margin: 24rpx; border-radius: 16rpx; padding: 40rpx 32rpx;
   .card-label { font-size: 26rpx; opacity: 0.85; display: block; }
-  .total-amount { font-size: 56rpx; font-weight: bold; display: block; margin: 16rpx 0 32rpx; }
+  .total-amount { font-size: 56rpx; font-weight: bold; display: block; margin: 16rpx 0 8rpx; }
+  .pending-label { font-size: 24rpx; opacity: 0.85; display: block; margin-bottom: 24rpx; }
   .row { display: flex; align-items: center; }
   .col { flex: 1; text-align: center; .num { font-size: 30rpx; font-weight: bold; display: block; } .desc { font-size: 22rpx; opacity: 0.8; display: block; margin-top: 4rpx; } }
   .divider { width: 1rpx; height: 48rpx; background: rgba(255,255,255,0.3); }
