@@ -1,15 +1,26 @@
 package com.delta.player.service;
 
+import com.delta.order.entity.Order;
+
+import java.math.BigDecimal;
+
 /**
- * 打手收入结算服务。
- * 确认记待入账由 SettlementEventListener 负责；
- * Task 4 将扩展 releaseDueSettlements / deductForOrderRefund。
+ * 打手收入结算服务：到期释放待入账、仲裁退款扣回。
  */
 public interface PlayerIncomeService {
+
     /**
-     * @deprecated 确认结算已迁至 SettlementEventListener，勿再调用。
-     *             Task 4 将移除此方法。
+     * 释放到期的待入账订单到可提现余额。
+     *
+     * @param limit 单批处理上限
+     * @return 成功入账订单数
      */
-    @Deprecated
-    void settleOrder(Long orderId);
+    int releaseDueSettlements(int limit);
+
+    /**
+     * 仲裁退款扣回：settled=2 先扣主打手本单剩余 settleAmount/pending，再扣 balance；
+     * settled=1 只扣 balance。拟扣上限为 refundAmount（与现网 CsComplaintController 一致）。
+     * Task 5 补全实现。
+     */
+    void deductForOrderRefund(Order order, BigDecimal refundAmount);
 }
