@@ -11,6 +11,7 @@ import com.delta.pay.entity.Transaction;
 import com.delta.pay.service.TransactionService;
 import com.delta.player.entity.PlayerWallet;
 import com.delta.player.service.PlayerWalletService;
+import com.delta.system.service.SysConfigService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,6 +33,7 @@ public class PlayerEarningsController {
     private final TransactionService transactionService;
     private final PlayerWalletService playerWalletService;
     private final OrderService orderService;
+    private final SysConfigService sysConfigService;
 
     /** 收益汇总 */
     @GetMapping("/summary")
@@ -44,6 +46,10 @@ public class PlayerEarningsController {
         data.put("balance", wallet != null ? wallet.getBalance() : BigDecimal.ZERO);
         data.put("frozenAmount", wallet != null ? wallet.getFrozenAmount() : BigDecimal.ZERO);
         data.put("totalIncome", wallet != null ? wallet.getTotalIncome() : BigDecimal.ZERO);
+        data.put("pendingBalance", wallet != null && wallet.getPendingBalance() != null
+                ? wallet.getPendingBalance() : BigDecimal.ZERO);
+        data.put("delayDays", Integer.parseInt(
+                sysConfigService.getConfigValue("settlement.delay_days", "5")));
 
         // 今日收益
         LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
