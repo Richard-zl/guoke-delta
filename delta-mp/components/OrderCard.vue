@@ -76,8 +76,9 @@ const playerIncomeAmount = computed(() => {
   return n * (1 - playerCommissionRateValue.value)
 })
 
-// 有接单员且处于服务进行中的状态才显示聊天按钮
+// 有接单员且处于服务进行中的状态才显示聊天按钮（审核期隐藏）
 const showChat = computed(() => {
+  if (siteStore.configLoaded && siteStore.isUnderReview) return false
   if (!props.order.playerId) return false
   const chatStatuses = ['ACCEPTED', 'WAITING_TEAMMATE', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED']
   return chatStatuses.includes(props.order.status)

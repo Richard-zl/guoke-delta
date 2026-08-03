@@ -31,6 +31,7 @@ import { getRemind } from '@/api/message'
 import { useChatStore } from '@/store/chat'
 import { formatRelativeTime } from '@/utils/format'
 import { useGoldDust } from '@/composables/useGoldDust'
+import { blockIfUnderReview } from '@/composables/useAuditGuard'
 useGoldDust()
 const chatStore = useChatStore()
 const sessions = ref([])
@@ -47,6 +48,8 @@ async function fetchList() {
 }
 
 onShow(async () => {
+  // 审核期隐藏聊天，直接回首页
+  if (await blockIfUnderReview()) return
   chatStore.connect(USER_CHAT_OPTS)
   try {
     const res = await getRemind({ loading: false })

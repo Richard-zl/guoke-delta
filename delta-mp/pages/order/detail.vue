@@ -77,7 +77,7 @@
       <view v-if="order.status==='PAID' && !order.playerId" class="btn" @click="showDesignatePicker = true">指定接单员</view>
       <view v-if="order.status==='COMPLETED'" class="btn" @click="doConfirm">确认完成</view>
       <view v-if="order.status==='CONFIRMED' && !order.reviewed" class="btn" @click="goReview">⭐ 去评价</view>
-      <view v-if="['IN_PROGRESS','COMPLETED','CONFIRMED'].includes(order.status)" class="btn-ghost" @click="goChat">💬 聊天</view>
+      <view v-if="!isUnderReview && ['IN_PROGRESS','COMPLETED','CONFIRMED'].includes(order.status)" class="btn-ghost" @click="goChat">💬 聊天</view>
       <view v-if="order.status==='IN_PROGRESS'" class="btn-warn" @click="showReplaceModal=true">申请换人</view>
       <view v-if="['IN_PROGRESS','COMPLETED'].includes(order.status)" class="btn-warn" @click="goComplaint">投诉</view>
     </view>
@@ -165,8 +165,10 @@ import { getCouponTypeLabel } from '@/utils/coupon'
 import CsContactModal from '@/components/CsContactModal.vue'
 import { useWeworkCs } from '@/composables/useWeworkCs'
 import { blockIfUnderReview } from '@/composables/useAuditGuard'
+import { useAuditMode } from '@/composables/useAuditMode'
 
 const { modalState: csModal, openWeworkCs } = useWeworkCs()
+const { isUnderReview } = useAuditMode()
 const order = ref(null)
 const orderId = ref(0)
 const progressList = ref([])

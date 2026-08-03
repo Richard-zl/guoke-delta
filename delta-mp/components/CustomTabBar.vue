@@ -40,12 +40,12 @@ const siteStore = useSiteStore()
 const { isUnderReview } = useAuditMode()
 const safeBottom = ref(0)
 
-/** 审核期用户端：隐藏「订单」保留四 Tab，「分类」改为「资讯」 */
+/** 审核期用户端：隐藏「订单」「消息」，「分类」改为「资讯」 */
 const currentTabs = computed(() => {
   const tabs = ROLE_TABS[appStore.role] || ROLE_TABS.user
   if (siteStore.configLoaded && appStore.role === 'user' && isUnderReview.value) {
     return tabs
-      .filter(tab => tab.pagePath !== '/pages/order/list')
+      .filter(tab => tab.pagePath !== '/pages/order/list' && tab.pagePath !== '/pages/chat/list')
       .map(tab => {
         if (tab.pagePath === '/pages/category/index') {
           return { ...tab, text: '资讯' }

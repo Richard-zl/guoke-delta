@@ -99,6 +99,7 @@ import { sendMessage as wsSend } from '@/utils/websocket'
 import { formatDateTime } from '@/utils/format'
 import { ORDER_STATUS_TEXT } from '@/utils/constants'
 import { USER_CHAT_SMS_REMINDERS, chooseChatSmsReminder } from '@/utils/chatSmsReminder'
+import { blockIfUnderReview } from '@/composables/useAuditGuard'
 
 const chatStore = useChatStore()
 const userStore = useUserStore()
@@ -188,6 +189,8 @@ function formatMsgTime(t) {
 }
 
 onLoad(async (opts) => {
+  // 审核期隐藏聊天
+  if (await blockIfUnderReview()) return
   let sid = opts.sessionId
   let sessionData = null
   if (!sid && opts.orderId) {

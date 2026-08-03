@@ -8,6 +8,8 @@ export const AUDIT_BLOCKED_ROUTES = [
   '/pages/order/pay',
   '/pages/order/list',
   '/pages/order/detail',
+  '/pages/chat/list',
+  '/pages/chat/room',
   '/pages/review/create',
   '/pages/wallet/index',
   '/pages/mine/coupon-list',
@@ -60,7 +62,8 @@ export function setupAuditRouteInterceptor() {
       return false
     }
   }
-  ;['navigateTo', 'redirectTo', 'reLaunch'].forEach((method) => {
+  // switchTab 一并拦截，防止审核期切到消息/订单等 Tab 页
+  ;['navigateTo', 'redirectTo', 'reLaunch', 'switchTab'].forEach((method) => {
     uni.addInterceptor(method, { invoke: intercept })
   })
 }
