@@ -170,7 +170,7 @@ public interface StatsMapper {
     BigDecimal sumPaidGrossByDate(@Param("date") String date);
 
     @Select("SELECT COALESCE(SUM(refund_amount),0) FROM payment " +
-            "WHERE biz_type = 'ORDER' AND refund_time IS NOT NULL " +
+            "WHERE biz_type = 'ORDER' AND refund_time IS NOT NULL AND paid_at IS NOT NULL " +
             "AND DATE(paid_at) = #{date} AND DATE(refund_time) = #{date}")
     BigDecimal sumSameDayRefundByDate(@Param("date") String date);
 

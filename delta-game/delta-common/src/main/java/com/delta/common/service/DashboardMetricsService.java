@@ -7,7 +7,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -70,7 +73,7 @@ public class DashboardMetricsService {
         for (Map<String, Object> row : rows) {
             Object k = row.get(keyField);
             if (k == null) continue;
-            map.put(String.valueOf(k), toBigDecimal(row.get(valueField)));
+            map.put(normalizeDateKey(k), toBigDecimal(row.get(valueField)));
         }
         return map;
     }
@@ -82,9 +85,19 @@ public class DashboardMetricsService {
             Object k = row.get(keyField);
             if (k == null) continue;
             Object v = row.get(valueField);
-            map.put(String.valueOf(k), v == null ? 0L : ((Number) v).longValue());
+            map.put(normalizeDateKey(k), v == null ? 0L : ((Number) v).longValue());
         }
         return map;
+    }
+
+    /** 将 MyBatis 返回的 date 键统一为 yyyy-MM-dd，避免与 LocalDate.toString() 对不上导致零填充 */
+    private String normalizeDateKey(Object k) {
+        if (k instanceof LocalDate ld) return ld.toString();
+        if (k instanceof Date sd) return sd.toLocalDate().toString();
+        if (k instanceof LocalDateTime ldt) return ldt.toLocalDate().toString();
+        if (k instanceof Timestamp ts) return ts.toLocalDateTime().toLocalDate().toString();
+        String s = String.valueOf(k);
+        return s.length() >= 10 ? s.substring(0, 10) : s;
     }
 
     private BigDecimal toBigDecimal(Object v) {

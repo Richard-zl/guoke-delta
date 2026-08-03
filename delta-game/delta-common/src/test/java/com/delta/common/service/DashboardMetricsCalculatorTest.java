@@ -24,6 +24,9 @@ class DashboardMetricsCalculatorTest {
     @Test
     void nullAmounts_treatedAsZero() {
         DashboardMoneyMetrics m = DashboardMetricsCalculator.of(0L, null, null, null);
+        assertEquals(0, BigDecimal.ZERO.compareTo(m.getPaidGross()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(m.getSameDayRefund()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(m.getRefundAmount()));
         assertEquals(0, BigDecimal.ZERO.compareTo(m.getGmv()));
         assertEquals(0, BigDecimal.ZERO.compareTo(m.getNetAmount()));
     }
