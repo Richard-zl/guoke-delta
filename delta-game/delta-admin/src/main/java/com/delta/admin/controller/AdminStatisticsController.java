@@ -102,7 +102,7 @@ public class AdminStatisticsController {
         return R.ok(data);
     }
 
-    /** 收益日报 */
+    /** 收益日报：确认口径（含待入账）+ 已入账口径 */
     @GetMapping("/income-daily")
     public R<Map<String, Object>> incomeDaily(
             @RequestParam(value = "startDate", required = false)
@@ -119,52 +119,87 @@ public class AdminStatisticsController {
 
         LocalDateTime start = resolvedStart.atStartOfDay();
         LocalDateTime end = resolvedEnd.plusDays(1).atStartOfDay();
-        List<Map<String, Object>> rawList = statsMapper.incomeDailyStatsByRange(start, end);
-        Map<String, Map<String, Object>> rawMap = new HashMap<>();
-        for (Map<String, Object> row : rawList) {
-            rawMap.put(String.valueOf(row.get("statDate")), row);
-        }
-        List<Map<String, Object>> orderDetailList = statsMapper.incomeDailyOrderDetailsByRange(start, end);
-        Map<String, List<Map<String, Object>>> orderDetailMap = new HashMap<>();
-        for (Map<String, Object> row : orderDetailList) {
-            String statDate = String.valueOf(row.get("statDate"));
-            orderDetailMap.computeIfAbsent(statDate, key -> new ArrayList<>()).add(row);
-        }
+
+        Map<String, Map<String, Object>> confirmMap =
+                indexByStatDate(statsMapper.incomeDailyConfirmStatsByRange(start, end));
+        Map<String, Map<String, Object>> settledMap =
+                indexByStatDate(statsMapper.incomeDailyStatsByRange(start, end));
+        Map<String, List<Map<String, Object>>> confirmDetailMap =
+                groupDetailsByStatDate(statsMapper.incomeDailyConfirmOrderDetailsByRange(start, end));
+        Map<String, List<Map<String, Object>>> settledDetailMap =
+                groupDetailsByStatDate(statsMapper.incomeDailyOrderDetailsByRange(start, end));
 
         List<Map<String, Object>> list = new ArrayList<>();
-        long totalOrderCount = 0L;
-        BigDecimal totalOrderAmount = BigDecimal.ZERO;
-        BigDecimal totalPlayerIncome = BigDecimal.ZERO;
-        BigDecimal totalCommissionIncome = BigDecimal.ZERO;
+        long confirmTotalCount = 0L;
+        BigDecimal confirmTotalAmount = BigDecimal.ZERO;
+        BigDecimal confirmTotalPlayer = BigDecimal.ZERO;
+        BigDecimal confirmTotalCommission = BigDecimal.ZERO;
+        long settledTotalCount = 0L;
+        BigDecimal settledTotalAmount = BigDecimal.ZERO;
+        BigDecimal settledTotalPlayer = BigDecimal.ZERO;
+        BigDecimal settledTotalCommission = BigDecimal.ZERO;
 
         for (LocalDate date = resolvedStart; !date.isAfter(resolvedEnd); date = date.plusDays(1)) {
             String key = date.toString();
-            Map<String, Object> raw = rawMap.get(key);
-            long orderCount = raw != null ? toLong(raw.get("orderCount")) : 0L;
-            BigDecimal orderAmount = raw != null ? toBigDecimal(raw.get("orderAmount")) : BigDecimal.ZERO;
-            BigDecimal playerIncome = raw != null ? toBigDecimal(raw.get("playerIncome")) : BigDecimal.ZERO;
-            BigDecimal commissionIncome = raw != null ? toBigDecimal(raw.get("commissionIncome")) : BigDecimal.ZERO;
+            Map<String, Object> confirmRaw = confirmMap.get(key);
+            Map<String, Object> settledRaw = settledMap.get(key);
+
+            long confirmOrderCount = metricLong(confirmRaw, "orderCount");
+            BigDecimal confirmOrderAmount = metricDecimal(confirmRaw, "orderAmount");
+            BigDecimal confirmPlayerIncome = metricDecimal(confirmRaw, "playerIncome");
+            BigDecimal confirmCommissionIncome = metricDecimal(confirmRaw, "commissionIncome");
+
+            long settledOrderCount = metricLong(settledRaw, "orderCount");
+            BigDecimal settledOrderAmount = metricDecimal(settledRaw, "orderAmount");
+            BigDecimal settledPlayerIncome = metricDecimal(settledRaw, "playerIncome");
+            BigDecimal settledCommissionIncome = metricDecimal(settledRaw, "commissionIncome");
+
+            List<Map<String, Object>> confirmOrders = confirmDetailMap.getOrDefault(key, new ArrayList<>());
+            List<Map<String, Object>> settledOrders = settledDetailMap.getOrDefault(key, new ArrayList<>());
 
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("statDate", key);
-            item.put("orderCount", orderCount);
-            item.put("orderAmount", orderAmount);
-            item.put("playerIncome", playerIncome);
-            item.put("commissionIncome", commissionIncome);
-            item.put("orders", orderDetailMap.getOrDefault(key, new ArrayList<>()));
+            item.put("confirmOrderCount", confirmOrderCount);
+            item.put("confirmOrderAmount", confirmOrderAmount);
+            item.put("confirmPlayerIncome", confirmPlayerIncome);
+            item.put("confirmCommissionIncome", confirmCommissionIncome);
+            item.put("settledOrderCount", settledOrderCount);
+            item.put("settledOrderAmount", settledOrderAmount);
+            item.put("settledPlayerIncome", settledPlayerIncome);
+            item.put("settledCommissionIncome", settledCommissionIncome);
+            // 兼容旧字段：映射为确认口径
+            item.put("orderCount", confirmOrderCount);
+            item.put("orderAmount", confirmOrderAmount);
+            item.put("playerIncome", confirmPlayerIncome);
+            item.put("commissionIncome", confirmCommissionIncome);
+            item.put("confirmOrders", confirmOrders);
+            item.put("settledOrders", settledOrders);
+            item.put("orders", confirmOrders);
             list.add(item);
 
-            totalOrderCount += orderCount;
-            totalOrderAmount = totalOrderAmount.add(orderAmount);
-            totalPlayerIncome = totalPlayerIncome.add(playerIncome);
-            totalCommissionIncome = totalCommissionIncome.add(commissionIncome);
+            confirmTotalCount += confirmOrderCount;
+            confirmTotalAmount = confirmTotalAmount.add(confirmOrderAmount);
+            confirmTotalPlayer = confirmTotalPlayer.add(confirmPlayerIncome);
+            confirmTotalCommission = confirmTotalCommission.add(confirmCommissionIncome);
+            settledTotalCount += settledOrderCount;
+            settledTotalAmount = settledTotalAmount.add(settledOrderAmount);
+            settledTotalPlayer = settledTotalPlayer.add(settledPlayerIncome);
+            settledTotalCommission = settledTotalCommission.add(settledCommissionIncome);
         }
 
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("orderCount", totalOrderCount);
-        summary.put("orderAmount", totalOrderAmount);
-        summary.put("playerIncome", totalPlayerIncome);
-        summary.put("commissionIncome", totalCommissionIncome);
+        summary.put("confirmOrderCount", confirmTotalCount);
+        summary.put("confirmOrderAmount", confirmTotalAmount);
+        summary.put("confirmPlayerIncome", confirmTotalPlayer);
+        summary.put("confirmCommissionIncome", confirmTotalCommission);
+        summary.put("settledOrderCount", settledTotalCount);
+        summary.put("settledOrderAmount", settledTotalAmount);
+        summary.put("settledPlayerIncome", settledTotalPlayer);
+        summary.put("settledCommissionIncome", settledTotalCommission);
+        summary.put("orderCount", confirmTotalCount);
+        summary.put("orderAmount", confirmTotalAmount);
+        summary.put("playerIncome", confirmTotalPlayer);
+        summary.put("commissionIncome", confirmTotalCommission);
 
         Map<String, Object> data = new HashMap<>();
         data.put("startDate", resolvedStart);
@@ -172,6 +207,47 @@ public class AdminStatisticsController {
         data.put("summary", summary);
         data.put("list", list);
         return R.ok(data);
+    }
+
+    private Map<String, Map<String, Object>> indexByStatDate(List<Map<String, Object>> rows) {
+        Map<String, Map<String, Object>> map = new HashMap<>();
+        if (rows == null) return map;
+        for (Map<String, Object> row : rows) {
+            String key = normalizeDateKey(row.get("statDate"));
+            if (!key.isEmpty()) map.put(key, row);
+        }
+        return map;
+    }
+
+    private Map<String, List<Map<String, Object>>> groupDetailsByStatDate(List<Map<String, Object>> rows) {
+        Map<String, List<Map<String, Object>>> map = new HashMap<>();
+        if (rows == null) return map;
+        for (Map<String, Object> row : rows) {
+            String key = normalizeDateKey(row.get("statDate"));
+            if (key.isEmpty()) continue;
+            map.computeIfAbsent(key, k -> new ArrayList<>()).add(row);
+        }
+        return map;
+    }
+
+    private String normalizeDateKey(Object value) {
+        if (value == null) return "";
+        if (value instanceof java.sql.Date d) return d.toLocalDate().toString();
+        if (value instanceof LocalDate d) return d.toString();
+        if (value instanceof LocalDateTime dt) return dt.toLocalDate().toString();
+        if (value instanceof java.util.Date d) {
+            return d.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString();
+        }
+        String s = String.valueOf(value);
+        return s.length() >= 10 ? s.substring(0, 10) : s;
+    }
+
+    private long metricLong(Map<String, Object> raw, String field) {
+        return raw != null ? toLong(raw.get(field)) : 0L;
+    }
+
+    private BigDecimal metricDecimal(Map<String, Object> raw, String field) {
+        return raw != null ? toBigDecimal(raw.get(field)) : BigDecimal.ZERO;
     }
 
     private long toLong(Object value) {

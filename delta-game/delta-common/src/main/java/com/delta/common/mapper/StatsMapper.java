@@ -131,6 +131,37 @@ public interface StatsMapper {
     List<Map<String, Object>> incomeDailyOrderDetailsByRange(@Param("start") LocalDateTime start,
                                                              @Param("end") LocalDateTime end);
 
+    /** 收益日报-确认口径：按 confirm_time，含待入账 settled=2 */
+    @Select("SELECT DATE(confirm_time) AS statDate, COUNT(*) AS orderCount, " +
+            "COALESCE(SUM(amount),0) AS orderAmount, " +
+            "COALESCE(SUM(settle_amount),0) AS playerIncome, " +
+            "COALESCE(SUM(amount - COALESCE(settle_amount, 0)),0) AS commissionIncome " +
+            "FROM `order` " +
+            "WHERE settled IN (1, 2) " +
+            "AND confirm_time IS NOT NULL " +
+            "AND status IN ('CONFIRMED','REVIEWED') " +
+            "AND confirm_time >= #{start} AND confirm_time < #{end} " +
+            "GROUP BY DATE(confirm_time) ORDER BY statDate")
+    List<Map<String, Object>> incomeDailyConfirmStatsByRange(@Param("start") LocalDateTime start,
+                                                             @Param("end") LocalDateTime end);
+
+    @Select("SELECT DATE(o.confirm_time) AS statDate, " +
+            "o.id, o.order_no AS orderNo, o.product_name AS productName, " +
+            "o.amount, o.settle_amount AS playerIncome, " +
+            "(o.amount - COALESCE(o.settle_amount, 0)) AS commissionIncome, " +
+            "o.created_at AS createdAt, o.settle_time AS settleTime, o.settled AS settled, " +
+            "u.nickname AS userNickname, p.nickname AS playerNickname " +
+            "FROM `order` o " +
+            "LEFT JOIN user u ON u.id = o.user_id " +
+            "LEFT JOIN player p ON p.id = o.player_id " +
+            "WHERE o.settled IN (1, 2) " +
+            "AND o.confirm_time IS NOT NULL " +
+            "AND o.status IN ('CONFIRMED','REVIEWED') " +
+            "AND o.confirm_time >= #{start} AND o.confirm_time < #{end} " +
+            "ORDER BY o.confirm_time DESC, o.id DESC")
+    List<Map<String, Object>> incomeDailyConfirmOrderDetailsByRange(@Param("start") LocalDateTime start,
+                                                                    @Param("end") LocalDateTime end);
+
     @Select("SELECT FLOOR(avg_rating) AS rating_level, COUNT(*) AS cnt FROM player " +
             "WHERE avg_rating IS NOT NULL GROUP BY rating_level ORDER BY rating_level")
     List<Map<String, Object>> playerRatingDistribution();
