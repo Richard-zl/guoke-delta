@@ -2,6 +2,8 @@ package com.delta.cs.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.delta.common.domain.R;
+import com.delta.common.dto.DashboardMoneyMetrics;
+import com.delta.common.service.DashboardMetricsService;
 import com.delta.order.entity.Complaint;
 import com.delta.order.entity.Order;
 import com.delta.order.service.ComplaintService;
@@ -14,7 +16,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -33,6 +34,7 @@ public class CsDashboardController {
     private final ComplaintService complaintService;
     private final PlayerService playerService;
     private final StatsMapper statsMapper;
+    private final DashboardMetricsService dashboardMetricsService;
 
     @GetMapping
     public R<Map<String, Object>> dashboard() {
@@ -68,8 +70,12 @@ public class CsDashboardController {
         result.put("todayCompleted", todayCompleted);
         result.put("todayComplaints", todayComplaints);
 
-        // 4b. 今日成交额
-        result.put("todayAmount", statsMapper.sumOrderAmountByDateRange(todayStart, todayEnd));
+        // 4b. 今日成交额（经营口径：GMV / 退款 / 净成交）
+        DashboardMoneyMetrics todayMoney = dashboardMetricsService.metricsForDate(LocalDate.now().toString());
+        result.put("todayGmv", todayMoney.getGmv());
+        result.put("todayRefundAmount", todayMoney.getRefundAmount());
+        result.put("todayNetAmount", todayMoney.getNetAmount());
+        result.put("todayAmount", todayMoney.getGmv()); // 兼容旧前端
 
         // 4c. 在线打手数（ACTIVE状态打手数作为近似）
         long activePlayers = playerService.count(new LambdaQueryWrapper<Player>()
