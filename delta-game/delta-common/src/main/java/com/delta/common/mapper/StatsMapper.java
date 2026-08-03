@@ -162,4 +162,60 @@ public interface StatsMapper {
     /** 客服未读投诉数（待处理且客服未查看） */
     @Select("SELECT COUNT(*) FROM complaint WHERE status IN ('PENDING','PROCESSING') AND cs_read_at IS NULL")
     Long countCsUnreadComplaints();
+
+    // ========== 经营 GMV（payment 口径） ==========
+
+    @Select("SELECT COALESCE(SUM(amount),0) FROM payment " +
+            "WHERE biz_type = 'ORDER' AND paid_at IS NOT NULL AND DATE(paid_at) = #{date}")
+    BigDecimal sumPaidGrossByDate(@Param("date") String date);
+
+    @Select("SELECT COALESCE(SUM(refund_amount),0) FROM payment " +
+            "WHERE biz_type = 'ORDER' AND refund_time IS NOT NULL " +
+            "AND DATE(paid_at) = #{date} AND DATE(refund_time) = #{date}")
+    BigDecimal sumSameDayRefundByDate(@Param("date") String date);
+
+    @Select("SELECT COALESCE(SUM(refund_amount),0) FROM payment " +
+            "WHERE biz_type = 'ORDER' AND refund_time IS NOT NULL AND DATE(refund_time) = #{date}")
+    BigDecimal sumRefundAmountByDate(@Param("date") String date);
+
+    @Select("SELECT COUNT(DISTINCT order_id) FROM payment " +
+            "WHERE biz_type = 'ORDER' AND paid_at IS NOT NULL AND DATE(paid_at) = #{date}")
+    Long countPaidOrdersByDate(@Param("date") String date);
+
+    @Select("SELECT COALESCE(SUM(amount),0) FROM payment " +
+            "WHERE biz_type = 'ORDER' AND paid_at IS NOT NULL")
+    BigDecimal sumPaidGrossTotal();
+
+    @Select("SELECT COALESCE(SUM(refund_amount),0) FROM payment " +
+            "WHERE biz_type = 'ORDER' AND refund_time IS NOT NULL " +
+            "AND paid_at IS NOT NULL AND DATE(paid_at) = DATE(refund_time)")
+    BigDecimal sumSameDayRefundTotal();
+
+    @Select("SELECT COALESCE(SUM(refund_amount),0) FROM payment " +
+            "WHERE biz_type = 'ORDER' AND refund_time IS NOT NULL")
+    BigDecimal sumRefundAmountTotal();
+
+    @Select("SELECT COUNT(DISTINCT order_id) FROM payment " +
+            "WHERE biz_type = 'ORDER' AND paid_at IS NOT NULL")
+    Long countPaidOrdersTotal();
+
+    @Select("SELECT DATE(paid_at) AS date, COUNT(DISTINCT order_id) AS paidOrderCount, " +
+            "COALESCE(SUM(amount),0) AS paidGross " +
+            "FROM payment WHERE biz_type = 'ORDER' AND paid_at IS NOT NULL " +
+            "AND paid_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) " +
+            "GROUP BY DATE(paid_at) ORDER BY date")
+    List<Map<String, Object>> paidGrossTrend7Days();
+
+    @Select("SELECT DATE(refund_time) AS date, COALESCE(SUM(refund_amount),0) AS refundAmount " +
+            "FROM payment WHERE biz_type = 'ORDER' AND refund_time IS NOT NULL " +
+            "AND refund_time >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) " +
+            "GROUP BY DATE(refund_time) ORDER BY date")
+    List<Map<String, Object>> refundTrend7Days();
+
+    @Select("SELECT DATE(paid_at) AS date, COALESCE(SUM(refund_amount),0) AS sameDayRefund " +
+            "FROM payment WHERE biz_type = 'ORDER' AND refund_time IS NOT NULL AND paid_at IS NOT NULL " +
+            "AND DATE(paid_at) = DATE(refund_time) " +
+            "AND paid_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) " +
+            "GROUP BY DATE(paid_at) ORDER BY date")
+    List<Map<String, Object>> sameDayRefundTrend7Days();
 }
