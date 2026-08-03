@@ -1,7 +1,9 @@
 package com.delta.admin.controller;
 
 import com.delta.common.domain.R;
+import com.delta.common.dto.DashboardMoneyMetrics;
 import com.delta.common.mapper.StatsMapper;
+import com.delta.common.service.DashboardMetricsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +16,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AdminHomeController {
     private final StatsMapper statsMapper;
+    private final DashboardMetricsService dashboardMetricsService;
 
     @GetMapping("/dashboard")
     public R<Map<String, Object>> dashboard() {
@@ -21,15 +24,26 @@ public class AdminHomeController {
         String today = LocalDate.now().toString();
         String yesterday = LocalDate.now().minusDays(1).toString();
 
-        // ====== 今日核心 ======
-        data.put("todayOrders", statsMapper.countOrdersByDate(today));
-        data.put("todayAmount", statsMapper.sumOrderAmountByDate(today));
+        DashboardMoneyMetrics todayM = dashboardMetricsService.metricsForDate(today);
+        DashboardMoneyMetrics yestM = dashboardMetricsService.metricsForDate(yesterday);
+        DashboardMoneyMetrics totalM = dashboardMetricsService.metricsTotal();
+
+        // ====== 今日核心（经营口径） ======
+        data.put("todayOrders", todayM.getPaidOrderCount());
+        data.put("todayGmv", todayM.getGmv());
+        data.put("todayRefundAmount", todayM.getRefundAmount());
+        data.put("todayNetAmount", todayM.getNetAmount());
+        // 兼容：旧字段语义升级为 GMV
+        data.put("todayAmount", todayM.getGmv());
         data.put("todayNewUsers", statsMapper.countUsersByDate(today));
         data.put("todayNewPlayers", statsMapper.countPlayersByDate(today));
 
         // ====== 昨日对比 ======
-        data.put("yesterdayOrders", statsMapper.countOrdersByDate(yesterday));
-        data.put("yesterdayAmount", statsMapper.sumOrderAmountByDate(yesterday));
+        data.put("yesterdayOrders", yestM.getPaidOrderCount());
+        data.put("yesterdayGmv", yestM.getGmv());
+        data.put("yesterdayRefundAmount", yestM.getRefundAmount());
+        data.put("yesterdayNetAmount", yestM.getNetAmount());
+        data.put("yesterdayAmount", yestM.getGmv());
         data.put("yesterdayNewUsers", statsMapper.countUsersByDate(yesterday));
 
         // ====== 待办事项 ======
@@ -41,11 +55,14 @@ public class AdminHomeController {
         // ====== 累计统计 ======
         data.put("totalUsers", statsMapper.countTotalUsers());
         data.put("totalPlayers", statsMapper.countTotalPlayers());
-        data.put("totalOrders", statsMapper.countTotalOrders());
-        data.put("totalAmount", statsMapper.sumTotalOrderAmount());
+        data.put("totalOrders", totalM.getPaidOrderCount());
+        data.put("totalGmv", totalM.getGmv());
+        data.put("totalRefundAmount", totalM.getRefundAmount());
+        data.put("totalNetAmount", totalM.getNetAmount());
+        data.put("totalAmount", totalM.getGmv());
 
-        // ====== 近7天订单趋势 ======
-        data.put("orderTrend", statsMapper.orderTrend7Days());
+        // ====== 近7天经营趋势 ======
+        data.put("orderTrend", dashboardMetricsService.trendLast7Days());
 
         // ====== 订单状态分布 ======
         data.put("statusDistribution", statsMapper.orderStatusDistribution());
