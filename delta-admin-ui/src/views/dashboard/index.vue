@@ -12,7 +12,12 @@
             <div class="stat-icon bg-blue"><el-icon :size="28"><List /></el-icon></div>
             <div class="stat-info">
               <div class="stat-value">{{ stats.todayOrders ?? '-' }}</div>
-              <div class="stat-label">今日订单</div>
+              <div class="stat-label">
+                今日已支付订单
+                <el-tooltip :content="METRIC_TIPS.paidOrders" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
               <div class="stat-compare" v-if="stats.yesterdayOrders != null">
                 昨日 {{ stats.yesterdayOrders }}
                 <span :class="diffClass(stats.todayOrders, stats.yesterdayOrders)">{{ diffText(stats.todayOrders, stats.yesterdayOrders) }}</span>
@@ -24,17 +29,56 @@
           <el-card shadow="hover" class="stat-card">
             <div class="stat-icon bg-green"><el-icon :size="28"><Money /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-value">¥{{ formatAmount(stats.todayAmount) }}</div>
-              <div class="stat-label">今日成交额</div>
-              <div class="stat-compare" v-if="stats.yesterdayAmount != null">
-                昨日 ¥{{ formatAmount(stats.yesterdayAmount) }}
+              <div class="stat-value">¥{{ formatAmount(stats.todayGmv ?? stats.todayAmount) }}</div>
+              <div class="stat-label">
+                今日 GMV（已扣同日退款）
+                <el-tooltip :content="METRIC_TIPS.gmv" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <div class="stat-compare" v-if="stats.yesterdayGmv != null || stats.yesterdayAmount != null">
+                昨日 ¥{{ formatAmount(stats.yesterdayGmv ?? stats.yesterdayAmount) }}
               </div>
             </div>
           </el-card>
         </el-col>
         <el-col :span="6">
           <el-card shadow="hover" class="stat-card">
-            <div class="stat-icon bg-purple"><el-icon :size="28"><User /></el-icon></div>
+            <div class="stat-icon bg-orange"><el-icon :size="28"><Wallet /></el-icon></div>
+            <div class="stat-info">
+              <div class="stat-value">¥{{ formatAmount(stats.todayRefundAmount) }}</div>
+              <div class="stat-label">
+                今日退款额
+                <el-tooltip :content="METRIC_TIPS.refund" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <div class="stat-compare" v-if="stats.yesterdayRefundAmount != null">
+                昨日 ¥{{ formatAmount(stats.yesterdayRefundAmount) }}
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="hover" class="stat-card">
+            <div class="stat-icon bg-purple"><el-icon :size="28"><CircleCheck /></el-icon></div>
+            <div class="stat-info">
+              <div class="stat-value">¥{{ formatAmount(stats.todayNetAmount) }}</div>
+              <div class="stat-label">
+                今日净成交
+                <el-tooltip :content="METRIC_TIPS.net" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+              <div class="stat-compare" v-if="stats.yesterdayNetAmount != null">
+                昨日 ¥{{ formatAmount(stats.yesterdayNetAmount) }}
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="hover" class="stat-card">
+            <div class="stat-icon bg-cyan"><el-icon :size="28"><User /></el-icon></div>
             <div class="stat-info">
               <div class="stat-value">{{ stats.todayNewUsers ?? '-' }}</div>
               <div class="stat-label">今日新增用户</div>
@@ -46,7 +90,7 @@
         </el-col>
         <el-col :span="6">
           <el-card shadow="hover" class="stat-card">
-            <div class="stat-icon bg-cyan"><el-icon :size="28"><Avatar /></el-icon></div>
+            <div class="stat-icon bg-yellow"><el-icon :size="28"><Avatar /></el-icon></div>
             <div class="stat-info">
               <div class="stat-value">{{ stats.todayNewPlayers ?? '-' }}</div>
               <div class="stat-label">今日新增打手</div>
@@ -119,15 +163,51 @@
           <el-card shadow="hover" class="stat-card mini">
             <div class="stat-info">
               <div class="stat-value">{{ stats.totalOrders ?? '-' }}</div>
-              <div class="stat-label">总订单数</div>
+              <div class="stat-label">
+                累计已支付订单
+                <el-tooltip :content="METRIC_TIPS.paidOrders" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
             </div>
           </el-card>
         </el-col>
         <el-col :span="6">
           <el-card shadow="hover" class="stat-card mini">
             <div class="stat-info">
-              <div class="stat-value">¥{{ formatAmount(stats.totalAmount) }}</div>
-              <div class="stat-label">总成交额</div>
+              <div class="stat-value">¥{{ formatAmount(stats.totalGmv ?? stats.totalAmount) }}</div>
+              <div class="stat-label">
+                累计 GMV（已扣同日退款）
+                <el-tooltip :content="METRIC_TIPS.gmv" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="hover" class="stat-card mini">
+            <div class="stat-info">
+              <div class="stat-value">¥{{ formatAmount(stats.totalRefundAmount) }}</div>
+              <div class="stat-label">
+                累计退款额
+                <el-tooltip :content="METRIC_TIPS.refund" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="hover" class="stat-card mini">
+            <div class="stat-info">
+              <div class="stat-value">¥{{ formatAmount(stats.totalNetAmount) }}</div>
+              <div class="stat-label">
+                累计净成交
+                <el-tooltip :content="METRIC_TIPS.net" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
             </div>
           </el-card>
         </el-col>
@@ -140,14 +220,29 @@
             <template #header><span>近7天订单趋势</span></template>
             <el-table :data="stats.orderTrend || []" stripe size="small">
               <el-table-column prop="date" label="日期" width="120" />
-              <el-table-column prop="orders" label="订单数" width="100" />
-              <el-table-column label="成交额">
-                <template #default="{ row }">¥{{ formatAmount(row.amount) }}</template>
+              <el-table-column prop="paidOrderCount" label="已支付订单" width="100">
+                <template #default="{ row }">{{ row.paidOrderCount ?? row.orders ?? '-' }}</template>
               </el-table-column>
-              <el-table-column label="趋势" width="200">
+              <el-table-column label="GMV">
+                <template #header>
+                  <span>GMV
+                    <el-tooltip :content="METRIC_TIPS.gmv" placement="top">
+                      <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                    </el-tooltip>
+                  </span>
+                </template>
+                <template #default="{ row }">¥{{ formatAmount(row.gmv ?? row.amount) }}</template>
+              </el-table-column>
+              <el-table-column label="退款额">
+                <template #default="{ row }">¥{{ formatAmount(row.refundAmount) }}</template>
+              </el-table-column>
+              <el-table-column label="净成交">
+                <template #default="{ row }">¥{{ formatAmount(row.netAmount) }}</template>
+              </el-table-column>
+              <el-table-column label="趋势" width="120">
                 <template #default="{ row }">
                   <div class="bar-wrapper">
-                    <div class="bar" :style="{ width: barWidth(row.orders) }"></div>
+                    <div class="bar" :style="{ width: barWidth(row.paidOrderCount ?? row.orders) }"></div>
                   </div>
                 </template>
               </el-table-column>
@@ -307,15 +402,48 @@
       <!-- 概览数据 -->
       <div class="section-label">平台概览</div>
       <el-row :gutter="16">
-        <el-col :span="6">
+        <el-col :span="8">
           <el-card shadow="hover" class="stat-card mini">
             <div class="stat-info">
-              <div class="stat-value">¥{{ formatAmount(stats.todayAmount) }}</div>
-              <div class="stat-label">今日成交额</div>
+              <div class="stat-value">¥{{ formatAmount(stats.todayGmv ?? stats.todayAmount) }}</div>
+              <div class="stat-label">
+                今日 GMV（已扣同日退款）
+                <el-tooltip :content="METRIC_TIPS.gmv" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="8">
+          <el-card shadow="hover" class="stat-card mini">
+            <div class="stat-info">
+              <div class="stat-value">¥{{ formatAmount(stats.todayRefundAmount) }}</div>
+              <div class="stat-label">
+                今日退款额
+                <el-tooltip :content="METRIC_TIPS.refund" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="8">
+          <el-card shadow="hover" class="stat-card mini">
+            <div class="stat-info">
+              <div class="stat-value">¥{{ formatAmount(stats.todayNetAmount) }}</div>
+              <div class="stat-label">
+                今日净成交
+                <el-tooltip :content="METRIC_TIPS.net" placement="top">
+                  <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+      <el-row :gutter="16" style="margin-top: 16px">
+        <el-col :span="8">
           <el-card shadow="hover" class="stat-card mini">
             <div class="stat-info">
               <div class="stat-value text-warning">{{ stats.pendingWithdraws ?? '-' }}</div>
@@ -323,7 +451,7 @@
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="8">
           <el-card shadow="hover" class="stat-card mini">
             <div class="stat-info">
               <div class="stat-value">{{ stats.totalUsers ?? '-' }}</div>
@@ -331,7 +459,7 @@
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
+        <el-col :span="8">
           <el-card shadow="hover" class="stat-card mini">
             <div class="stat-info">
               <div class="stat-value">{{ stats.totalPlayers ?? '-' }}</div>
@@ -363,8 +491,16 @@ import { useUserStore } from '@/stores/user'
 import { getAdminDashboard, getCsDashboard, getStatisticsUser, getStatisticsPlayer } from '@/api/dashboard'
 import {
   List, Money, User, Avatar, Warning, Wallet, Clock, Loading,
-  EditPen, ChatDotRound, CircleCheck
+  EditPen, ChatDotRound, CircleCheck, QuestionFilled
 } from '@element-plus/icons-vue'
+
+// 指标口径说明文案
+const METRIC_TIPS = {
+  gmv: '支付成功金额（按支付日），已扣除支付日与退款日均为该统计日的退款；不含待支付/未付款取消；不扣跨日退款',
+  refund: '统计日内完成退款的金额（可含历史支付单）',
+  net: '支付毛额减去当日全部退款；因跨日退款可能小于 GMV，甚至为负',
+  paidOrders: '支付成功过的订单数（含后来全额/部分退款的）'
+}
 
 const userStore = useUserStore()
 const isAdmin = computed(() => userStore.role === 'admin')
@@ -396,10 +532,10 @@ const statusTypeMap = {
 function orderStatusLabel(s) { return statusLabelMap[s] || s }
 function orderStatusType(s) { return statusTypeMap[s] || '' }
 
-// 趋势柱状条宽度
+// 趋势柱状条宽度（优先 paidOrderCount，兼容旧 orders 字段）
 function barWidth(val) {
   const trend = stats.value.orderTrend || []
-  const max = Math.max(...trend.map(t => Number(t.orders) || 0), 1)
+  const max = Math.max(...trend.map(t => Number(t.paidOrderCount ?? t.orders) || 0), 1)
   return Math.round((Number(val) / max) * 100) + '%'
 }
 
@@ -606,6 +742,13 @@ onMounted(() => {
   padding: 8px 0 12px;
   color: #42526e;
   font-size: 13px;
+}
+
+.tip-icon {
+  margin-left: 4px;
+  cursor: help;
+  vertical-align: middle;
+  color: var(--el-text-color-secondary);
 }
 
 :deep(.el-card:not(.stat-card)) {
