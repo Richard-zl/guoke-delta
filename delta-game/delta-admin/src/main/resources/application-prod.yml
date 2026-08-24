@@ -80,8 +80,12 @@ wx:
     # 微信支付公钥ID（商户平台“微信支付公钥”页面展示的ID）
     public-key-id: PUB_KEY_ID_0117468305392026061100211600001601
   mp:
-    appid: "wxb3f543d8d0fca6b7"
-    secret: "773f55b4040018b44c6fbe0201d041bb"
+    # 俱乐部本身的key 被封了
+    # appid: "wxb3f543d8d0fca6b7"
+    # secret: "773f55b4040018b44c6fbe0201d041bb"
+    # 临时替换为宗源智游的服务号
+    appid: "wxd34e76d728f69260"
+    secret: "cb2c0bf35933cc9e9859b8676b9edb97"
   kf:
     corp-id: "ww708dea570e1580cf"
     secret: "UKqcKyw52xYtcHePgS-Sj4GrCq6ChyRpgbClQ_R-1Uc"

@@ -96,7 +96,14 @@
         </div>
       </template>
 
-      <el-table :data="tableData" stripe row-key="statDate">
+      <!-- max-height 启用 Element Plus 表头固定，纵向滚动时表头悬浮 -->
+      <el-table
+        :data="tableData"
+        stripe
+        row-key="statDate"
+        class="income-daily-table"
+        max-height="calc(100vh - 420px)"
+      >
         <el-table-column type="expand" width="48">
           <template #default="{ row }">
             <div class="income-detail">
@@ -375,5 +382,16 @@ onMounted(() => {
 
 .detail-table {
   border-radius: 8px;
+}
+
+/* 表头悬浮时保证层级与背景，避免透明穿透 */
+.income-daily-table {
+  :deep(.el-table__header-wrapper) {
+    z-index: 3;
+  }
+
+  :deep(th.el-table__cell) {
+    background: var(--el-bg-color);
+  }
 }
 </style>
