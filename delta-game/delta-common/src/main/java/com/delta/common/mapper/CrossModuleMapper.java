@@ -1,5 +1,6 @@
 package com.delta.common.mapper;
 
+import com.delta.common.dto.PlayerActiveOrderStats;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -123,8 +124,98 @@ public interface CrossModuleMapper {
     @Select("SELECT COUNT(*) FROM `order` WHERE player_id = #{playerId} AND status IN ('COMPLETED','CONFIRMED','REVIEWED')")
     int selectPlayerCompletedOrders(@Param("playerId") Long playerId);
 
-    @Select("SELECT COUNT(*) FROM `order` WHERE player_id = #{playerId} AND status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')")
+    /** 统计打手占用订单，包含主打手、辅助打手和已接受队友，同一订单只计一次。 */
+    @Select("""
+            SELECT COUNT(DISTINCT occupied.order_id)
+            FROM (
+                SELECT o.id AS order_id
+                FROM `order` o
+                WHERE o.player_id = #{playerId}
+                  AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+                UNION
+                SELECT o.id
+                FROM `order` o
+                WHERE o.player_id2 = #{playerId}
+                  AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+                UNION
+                SELECT op.order_id
+                FROM order_player op
+                INNER JOIN `order` o ON o.id = op.order_id
+                WHERE op.player_id = #{playerId}
+                  AND op.status = 'ACCEPTED'
+                  AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+            ) occupied
+            """)
     int selectPlayerActiveOrders(@Param("playerId") Long playerId);
+
+    /** 接受指派时排除当前订单，避免预占名额阻断当前订单确认。 */
+    @Select("""
+            SELECT COUNT(DISTINCT occupied.order_id)
+            FROM (
+                SELECT o.id AS order_id
+                FROM `order` o
+                WHERE o.player_id = #{playerId}
+                  AND o.id != #{excludedOrderId}
+                  AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+                UNION
+                SELECT o.id
+                FROM `order` o
+                WHERE o.player_id2 = #{playerId}
+                  AND o.id != #{excludedOrderId}
+                  AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+                UNION
+                SELECT op.order_id
+                FROM order_player op
+                INNER JOIN `order` o ON o.id = op.order_id
+                WHERE op.player_id = #{playerId}
+                  AND op.order_id != #{excludedOrderId}
+                  AND op.status = 'ACCEPTED'
+                  AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+            ) occupied
+            """)
+    int selectPlayerActiveOrdersExcludingOrder(
+            @Param("playerId") Long playerId,
+            @Param("excludedOrderId") Long excludedOrderId);
+
+    /** 批量返回工作状态所需的占用数和待确认指派数。 */
+    @Select("""
+            <script>
+            SELECT occupied.player_id AS playerId,
+                   COUNT(DISTINCT occupied.order_id) AS activeOrders,
+                   COUNT(DISTINCT CASE WHEN occupied.order_status = 'ASSIGNED'
+                                       THEN occupied.order_id END) AS pendingAssignedOrders
+            FROM (
+                SELECT o.player_id AS player_id, o.id AS order_id, o.status AS order_status
+                FROM `order` o
+                WHERE o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+                  AND o.player_id IN
+                  <foreach collection="playerIds" item="id" open="(" separator="," close=")">
+                      #{id}
+                  </foreach>
+                UNION
+                SELECT o.player_id2, o.id, o.status
+                FROM `order` o
+                WHERE o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+                  AND o.player_id2 IN
+                  <foreach collection="playerIds" item="id" open="(" separator="," close=")">
+                      #{id}
+                  </foreach>
+                UNION
+                SELECT op.player_id, op.order_id, o.status
+                FROM order_player op
+                INNER JOIN `order` o ON o.id = op.order_id
+                WHERE op.status = 'ACCEPTED'
+                  AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+                  AND op.player_id IN
+                  <foreach collection="playerIds" item="id" open="(" separator="," close=")">
+                      #{id}
+                  </foreach>
+            ) occupied
+            GROUP BY occupied.player_id
+            </script>
+            """)
+    List<PlayerActiveOrderStats> batchSelectPlayerActiveOrderStats(
+            @Param("playerIds") List<Long> playerIds);
 
     /** 同 openid 下由用户 id 查打手 id（打手端与用户端同一 token，会话列表需按打手 id 匹配） */
     @Select("SELECT p.id FROM player p INNER JOIN user u ON u.openid = p.openid WHERE u.id = #{userId} LIMIT 1")

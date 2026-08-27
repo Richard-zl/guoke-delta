@@ -12,7 +12,7 @@ import com.delta.player.entity.Player;
 import com.delta.player.entity.PlayerWallet;
 import com.delta.player.service.PlayerService;
 import com.delta.player.service.PlayerWalletService;
-import com.delta.system.service.SysConfigService;
+import com.delta.player.service.PlayerWorkStatusService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
@@ -27,21 +27,21 @@ public class CsPlayerController {
     private final PlayerService playerService;
     private final PlayerWalletService playerWalletService;
     private final CrossModuleMapper crossModuleMapper;
+    private final PlayerWorkStatusService playerWorkStatusService;
     private final TransactionService transactionService;
-    private final SysConfigService sysConfigService;
 
     @GetMapping("/list")
     public R<Page<Player>> list(PageQuery query,
                                 @RequestParam(value = "status", required = false) String status,
-                                @RequestParam(value = "keyword", required = false) String keyword) {
+                                @RequestParam(value = "keyword", required = false) String keyword,
+                                @RequestParam(value = "workStatus", required = false) String workStatus) {
         LambdaQueryWrapper<Player> w = new LambdaQueryWrapper<Player>()
                 .eq(status != null && !status.isEmpty(), Player::getStatus, status)
                 .and(keyword != null && !keyword.isEmpty(), qw -> qw.like(Player::getNickname, keyword).or().like(Player::getPhone, keyword))
                 .orderByDesc(Player::getCreatedAt);
-        Page<Player> page = playerService.page(new Page<>(query.getPageNum(), query.getPageSize()), w);
+        Page<Player> page = playerWorkStatusService.queryPage(query, w, workStatus);
         for (Player p : page.getRecords()) {
             p.setCompletedOrders(crossModuleMapper.selectPlayerCompletedOrders(p.getId()));
-            p.setActiveOrders(crossModuleMapper.selectPlayerActiveOrders(p.getId()));
         }
         return R.ok(page);
     }
@@ -59,9 +59,9 @@ public class CsPlayerController {
         Page<Player> page = playerService.page(new Page<>(query.getPageNum(), query.getPageSize()), w);
         for (Player p : page.getRecords()) {
             p.setCompletedOrders(crossModuleMapper.selectPlayerCompletedOrders(p.getId()));
-            p.setActiveOrders(crossModuleMapper.selectPlayerActiveOrders(p.getId()));
         }
-        int maxConcurrent = Integer.parseInt(sysConfigService.getConfigValue("order.max_active_per_player", "1"));
+        playerWorkStatusService.enrichBatch(page.getRecords());
+        int maxConcurrent = playerWorkStatusService.getMaxConcurrent();
         Map<String, Object> result = new HashMap<>();
         result.put("players", page);
         result.put("maxConcurrent", maxConcurrent);
@@ -73,7 +73,7 @@ public class CsPlayerController {
         Player p = playerService.getById(id);
         if (p != null) {
             p.setCompletedOrders(crossModuleMapper.selectPlayerCompletedOrders(id));
-            p.setActiveOrders(crossModuleMapper.selectPlayerActiveOrders(id));
+            playerWorkStatusService.enrichOne(p);
             PlayerWallet wallet = playerWalletService.getByPlayerId(id);
             p.setBalance(wallet != null ? wallet.getBalance() : BigDecimal.ZERO);
         }

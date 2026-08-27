@@ -2,12 +2,14 @@ package com.delta.player.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.delta.common.constant.PlayerOccupancyConstants;
 import com.delta.common.domain.PageQuery;
 import com.delta.common.domain.R;
 import com.delta.common.enums.OrderStatusEnum;
 import com.delta.common.event.BusinessEvent;
 import com.delta.common.exception.BusinessException;
 import com.delta.common.utils.ImageListUtils;
+import com.delta.common.util.MaxConcurrentConfigParser;
 import com.delta.common.security.utils.SecurityUtils;
 import com.delta.common.chat.service.ChatSessionService;
 import com.delta.common.chat.util.ChatParticipantId;
@@ -20,6 +22,7 @@ import com.delta.order.service.OrderProgressService;
 import com.delta.order.service.OrderService;
 import com.delta.player.entity.Player;
 import com.delta.player.service.PlayerService;
+import com.delta.player.service.PlayerWorkStatusService;
 import com.delta.system.service.SysConfigService;
 import com.delta.common.mapper.CrossModuleMapper;
 import lombok.Data;
@@ -50,6 +53,7 @@ public class PlayerOrderController {
     private final SysConfigService sysConfigService;
     private final CrossModuleMapper crossModuleMapper;
     private final OrderDisplayEnricher orderDisplayEnricher;
+    private final PlayerWorkStatusService playerWorkStatusService;
 
     /**
      * 接单大厅：浏览可接订单。
@@ -157,11 +161,16 @@ public class PlayerOrderController {
             }
             return R.fail("打手状态不允许接单");
         }
+        if (!Integer.valueOf(1).equals(player.getIsOnline())) {
+            return R.fail("请先切换为在线状态再接单");
+        }
         // 接单上限校验
-        int maxActive = Integer.parseInt(sysConfigService.getConfigValue("order.max_active_per_player", "5"));
-        long activeCount = orderService.count(new LambdaQueryWrapper<Order>()
-                .eq(Order::getPlayerId, playerId)
-                .in(Order::getStatus, "ACCEPTED", "IN_PROGRESS", "WAITING_TEAMMATE"));
+        int maxActive = MaxConcurrentConfigParser.parse(
+                sysConfigService.getConfigValue(
+                        PlayerOccupancyConstants.MAX_ACTIVE_CONFIG_KEY,
+                        PlayerOccupancyConstants.DEFAULT_MAX_ACTIVE));
+        int activeCount =
+                crossModuleMapper.selectPlayerActiveOrdersExcludingOrder(playerId, orderId);
         if (activeCount >= maxActive) {
             return R.fail("您当前进行中的订单已达上限(" + maxActive + "单)");
         }
@@ -433,12 +442,12 @@ public class PlayerOrderController {
         // 填充统计数据（和派单页面一样）
         for (Player p : page.getRecords()) {
             p.setCompletedOrders(crossModuleMapper.selectPlayerCompletedOrders(p.getId()));
-            p.setActiveOrders(crossModuleMapper.selectPlayerActiveOrders(p.getId()));
         }
+        playerWorkStatusService.enrichBatch(page.getRecords());
         long activePoolCount = playerService.count(new LambdaQueryWrapper<Player>()
                 .eq(Player::getStatus, "ACTIVE")
                 .ne(Player::getId, playerId));
-        int maxConcurrent = Integer.parseInt(sysConfigService.getConfigValue("order.max_active_per_player", "5"));
+        int maxConcurrent = playerWorkStatusService.getMaxConcurrent();
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         result.put("players", page);
         result.put("maxConcurrent", maxConcurrent);

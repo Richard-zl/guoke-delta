@@ -185,9 +185,10 @@ Admin 与 CS 共用该页，走各自 list 接口，字段契约相同。
 选择按钮禁用当且仅当：
 
 - `workStatus` 为 `OFFLINE` 或 `FULL` 或 `ACCOUNT_ABNORMAL`
+- 或 `activeOrders >= maxConcurrent`（`ASSIGNED_PENDING` 优先于 `FULL` 展示时，仍必须按占用上限禁用）
 - 或 `isOnline !== 1`（与现有指派校验一致）
 
-`AVAILABLE`、`IN_SERVICE`、`ASSIGNED_PENDING` 可选。
+`AVAILABLE`、未满额的 `IN_SERVICE`、未满额的 `ASSIGNED_PENDING` 可选。
 
 满单点击拦截（防御）：提示「已达最大接单数」。
 
@@ -210,9 +211,9 @@ Admin 与 CS 共用该页，走各自 list 接口，字段契约相同。
 | 场景 | 期望 |
 |------|------|
 | 在线、ACTIVE、无占用 | `AVAILABLE`，出现在默认筛选 |
-| 仅有 `ASSIGNED` 主单 | `ASSIGNED_PENDING`，占用含该单 |
+| 仅有 `ASSIGNED` 主单 | `ASSIGNED_PENDING`，占用含该单；达到上限时不可再派 |
 | 有 `IN_PROGRESS` 且未满额 | `IN_SERVICE`，指派弹窗可选 |
-| 占用达到上限 | `FULL`，列表与弹窗均不可派 |
+| 无待确认且占用达到上限 | `FULL`，列表与弹窗均不可派 |
 | 仅作为已接受队友 | 占用 +1，不再显示可接单 |
 | `player_id2` 辅助 | 占用 +1 |
 | 离线但账号正常 | `OFFLINE`，弹窗禁用 |

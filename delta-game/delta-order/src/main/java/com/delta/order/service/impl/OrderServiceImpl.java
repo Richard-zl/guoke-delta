@@ -2,12 +2,14 @@ package com.delta.order.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.delta.common.constant.PlayerOccupancyConstants;
 import com.delta.common.enums.OrderStatusEnum;
 import com.delta.common.event.BusinessEvent;
 import com.delta.common.event.OrderConfirmedEvent;
 import com.delta.common.exception.BusinessException;
 import com.delta.common.utils.IdGenerator;
 import com.delta.common.utils.ImageListUtils;
+import com.delta.common.util.MaxConcurrentConfigParser;
 import com.delta.order.dto.CreateOrderRequest;
 import com.delta.order.entity.Order;
 import com.delta.order.entity.OrderPlayer;
@@ -262,9 +264,15 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (!"ACTIVE".equals(playerStatus)) {
             throw new BusinessException("目标打手状态不可用，无法指派");
         }
+        if (!Integer.valueOf(1).equals(crossModuleMapper.selectPlayerIsOnline(playerId))) {
+            throw new BusinessException("目标打手当前离线，无法指派");
+        }
 
-        int maxConcurrent = Integer.parseInt(sysConfigService.getConfigValue("order.max_active_per_player", "1"));
-        int activeOrders = crossModuleMapper.selectPlayerActiveOrders(playerId);
+        int maxConcurrent = MaxConcurrentConfigParser.parse(
+                sysConfigService.getConfigValue(
+                        PlayerOccupancyConstants.MAX_ACTIVE_CONFIG_KEY,
+                        PlayerOccupancyConstants.DEFAULT_MAX_ACTIVE));
+        int activeOrders = crossModuleMapper.selectPlayerActiveOrdersExcludingOrder(playerId, orderId);
         if (activeOrders >= maxConcurrent) {
             throw new BusinessException("该打手当前已有" + activeOrders + "个进行中订单，已达最大接单数" + maxConcurrent + "，无法指派");
         }
@@ -277,10 +285,13 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             if (!"ACTIVE".equals(playerStatus2)) {
                 throw new BusinessException("第二个打手状态不可用，无法指派");
             }
+            if (!Integer.valueOf(1).equals(crossModuleMapper.selectPlayerIsOnline(playerId2))) {
+                throw new BusinessException("第二个打手当前离线，无法指派");
+            }
             if (playerId.equals(playerId2)) {
                 throw new BusinessException("不能指派同一个打手");
             }
-            int activeOrders2 = crossModuleMapper.selectPlayerActiveOrders(playerId2);
+            int activeOrders2 = crossModuleMapper.selectPlayerActiveOrdersExcludingOrder(playerId2, orderId);
             if (activeOrders2 >= maxConcurrent) {
                 throw new BusinessException("第二个打手当前已有" + activeOrders2 + "个进行中订单，已达最大接单数" + maxConcurrent + "，无法指派");
             }

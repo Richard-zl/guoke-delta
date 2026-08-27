@@ -50,26 +50,30 @@
     </el-card>
 
     <!-- 通过：选择接力打手 -->
-    <el-dialog v-model="approveVisible" title="通过接力 — 指定接力打手" width="620px">
+    <el-dialog v-model="approveVisible" title="通过接力 — 指定接力打手" width="860px">
       <p class="dialog-tip">选择一名打手接手该订单，原打手将按申请的分成方式结算已完成部分。</p>
       <el-form :inline="true" class="player-search">
         <el-form-item><el-input v-model="playerKeyword" placeholder="搜索打手昵称/手机号" clearable @keyup.enter="searchPlayers" /></el-form-item>
         <el-form-item><el-button type="primary" @click="searchPlayers">搜索</el-button></el-form-item>
       </el-form>
-      <el-table :data="playerList" v-loading="playerLoading" stripe size="small" max-height="320">
+      <el-table :data="playerList" v-loading="playerLoading" stripe size="small" max-height="320" :row-class-name="playerRowClass">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="nickname" label="昵称" min-width="100" />
         <el-table-column prop="phone" label="手机" width="120" />
-        <el-table-column label="状态" width="80">
+        <el-table-column label="工作状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="{ ACTIVE: 'success', PENDING: 'warning', FROZEN: 'info' }[row.status] || 'info'" size="small">
-              {{ { ACTIVE: '正常', PENDING: '待审核', FROZEN: '已冻结' }[row.status] || row.status }}
-            </el-tag>
+            <el-tag :type="workStatusMeta(row.workStatus).type" size="small">{{ workStatusMeta(row.workStatus).label }}</el-tag>
           </template>
+        </el-table-column>
+        <el-table-column label="占用" min-width="150">
+          <template #default="{ row }">{{ formatActiveOrders(row, maxConcurrent) }}</template>
+        </el-table-column>
+        <el-table-column label="在线" width="80">
+          <template #default="{ row }"><el-tag :type="row.isOnline === 1 ? 'success' : 'info'" size="small">{{ row.isOnline === 1 ? '在线' : '离线' }}</el-tag></template>
         </el-table-column>
         <el-table-column label="操作" width="80">
           <template #default="{ row }">
-            <el-button link type="primary" :disabled="row.id === approveRow?.originalPlayerId" @click="confirmApprove(row.id)">
+            <el-button link type="primary" :disabled="row.id === approveRow?.originalPlayerId || !isPlayerSelectable(row, maxConcurrent)" @click="confirmApprove(row)">
               {{ row.id === approveRow?.originalPlayerId ? '本人' : '选择' }}
             </el-button>
           </template>
@@ -105,6 +109,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { csRelayList, csRelayApprove, csRelayReject, playerAssignList } from '@/api/business'
 import { ElMessage } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
+import { workStatusMeta, formatActiveOrders, isPlayerSelectable, isPlayerRowDimmed, guardPlayerSelection } from '@/utils/playerWorkStatus'
 
 const statusText = { PENDING: '待处理', APPROVED: '已通过', REJECTED: '已拒绝' }
 const statusTagType = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger' }
@@ -140,6 +145,7 @@ const playerKeyword = ref('')
 const playerPageNum = ref(1)
 const playerTotal = ref(0)
 const playerPageSize = 20
+const maxConcurrent = ref(1)
 
 function openApproveDialog(row) {
   approveRow.value = row
@@ -165,6 +171,7 @@ async function fetchPlayers() {
       keyword: playerKeyword.value || undefined,
     })
     const page = res.data?.players || {}
+    maxConcurrent.value = Number(res.data?.maxConcurrent || 1)
     playerList.value = page.records ?? []
     playerTotal.value = Number(page.total || 0)
   } finally {
@@ -172,10 +179,16 @@ async function fetchPlayers() {
   }
 }
 
-async function confirmApprove(newPlayerId) {
+function playerRowClass({ row }) {
+  return isPlayerRowDimmed(row) ? 'dimmed-row' : ''
+}
+
+async function confirmApprove(player) {
   if (!approveRow.value) return
+  if (player.id === approveRow.value.originalPlayerId) return
+  if (!guardPlayerSelection(player, maxConcurrent.value)) return
   try {
-    await csRelayApprove(approveRow.value.id, newPlayerId)
+    await csRelayApprove(approveRow.value.id, player.id)
     ElMessage.success('已通过，已指定接力打手')
     approveVisible.value = false
     approveRow.value = null
@@ -215,4 +228,5 @@ onMounted(fetchData)
 .processed { font-size: 12px; color: #999; }
 .dialog-tip { color: #666; font-size: 13px; margin-bottom: 12px; }
 .player-search { margin-bottom: 8px; }
+:deep(.dimmed-row) { opacity: 0.5; }
 </style>

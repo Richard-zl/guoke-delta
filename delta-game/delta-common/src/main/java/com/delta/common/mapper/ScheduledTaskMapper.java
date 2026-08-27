@@ -18,12 +18,38 @@ public interface ScheduledTaskMapper {
             "AND created_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE) LIMIT 20")
     List<Map<String, Object>> selectUnassignedOrders();
 
-    @Select("SELECT p.id FROM player p WHERE p.status = 'ACTIVE' AND p.deleted = 0 " +
-            "AND p.is_online = 1 " +
-            "AND (p.frozen_until IS NULL OR p.frozen_until < NOW()) " +
-            "AND (SELECT COUNT(*) FROM `order` o WHERE o.player_id = p.id " +
-            "AND o.status IN ('ACCEPTED','IN_PROGRESS','WAITING_TEAMMATE')) < #{maxActive} " +
-            "ORDER BY p.avg_rating DESC LIMIT 1")
+    @Select("""
+            SELECT p.id
+            FROM player p
+            LEFT JOIN (
+                SELECT occupied.player_id, COUNT(DISTINCT occupied.order_id) AS active_orders
+                FROM (
+                    SELECT o.player_id, o.id AS order_id
+                    FROM `order` o
+                    WHERE o.player_id IS NOT NULL
+                      AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+                    UNION
+                    SELECT o.player_id2, o.id
+                    FROM `order` o
+                    WHERE o.player_id2 IS NOT NULL
+                      AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+                    UNION
+                    SELECT op.player_id, op.order_id
+                    FROM order_player op
+                    INNER JOIN `order` o ON o.id = op.order_id
+                    WHERE op.status = 'ACCEPTED'
+                      AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS')
+                ) occupied
+                GROUP BY occupied.player_id
+            ) occupancy ON occupancy.player_id = p.id
+            WHERE p.status = 'ACTIVE'
+              AND p.deleted = 0
+              AND p.is_online = 1
+              AND (p.frozen_until IS NULL OR p.frozen_until < NOW())
+              AND COALESCE(occupancy.active_orders, 0) < #{maxActive}
+            ORDER BY p.avg_rating DESC
+            LIMIT 1
+            """)
     List<Map<String, Object>> selectAvailablePlayers(@Param("maxActive") int maxActive);
 
     @Select("SELECT config_value FROM sys_config WHERE config_key = #{key}")

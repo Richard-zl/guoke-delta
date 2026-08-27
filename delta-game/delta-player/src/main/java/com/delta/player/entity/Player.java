@@ -44,4 +44,13 @@ public class Player extends BaseEntity {
     /** 进行中订单数（非DB字段） */
     @TableField(exist = false)
     private Integer activeOrders;
+    /** 综合工作状态（非DB字段） */
+    @TableField(exist = false)
+    private String workStatus;
+    /** 待确认指派数（非DB字段） */
+    @TableField(exist = false)
+    private Integer pendingAssignedOrders;
+    /** 最大并发接单数（非DB字段） */
+    @TableField(exist = false)
+    private Integer maxConcurrent;
 }

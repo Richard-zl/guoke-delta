@@ -1,7 +1,9 @@
 package com.delta.common.job.task;
 
+import com.delta.common.constant.PlayerOccupancyConstants;
 import com.delta.common.mapper.ScheduledTaskMapper;
 import com.delta.common.redis.service.RedisService;
+import com.delta.common.util.MaxConcurrentConfigParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -22,11 +24,9 @@ public class OrderAutoAssignTask {
         try {
             // 查询PAID状态且超过10分钟未被接单的订单
             List<Map<String, Object>> orders = scheduledTaskMapper.selectUnassignedOrders();
-            int maxActive = 5;
-            try {
-                String val = scheduledTaskMapper.selectConfigValue("order.max_active_per_player");
-                if (val != null) maxActive = Integer.parseInt(val);
-            } catch (Exception ignored) {}
+            int maxActive = MaxConcurrentConfigParser.parse(
+                    scheduledTaskMapper.selectConfigValue(
+                            PlayerOccupancyConstants.MAX_ACTIVE_CONFIG_KEY));
             for (Map<String, Object> order : orders) {
                 Long orderId = ((Number) order.get("id")).longValue();
                 // 查找空闲的ACTIVE打手（进行中订单数最少）

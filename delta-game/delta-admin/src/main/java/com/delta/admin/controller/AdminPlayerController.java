@@ -14,6 +14,7 @@ import com.delta.player.entity.Player;
 import com.delta.player.entity.PlayerWallet;
 import com.delta.player.service.PlayerService;
 import com.delta.player.service.PlayerWalletService;
+import com.delta.player.service.PlayerWorkStatusService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +27,7 @@ import java.math.BigDecimal;
 public class AdminPlayerController {
     private final PlayerService playerService;
     private final PlayerWalletService playerWalletService;
+    private final PlayerWorkStatusService playerWorkStatusService;
     private final OrderService orderService;
     private final TransactionService transactionService;
     private final ApplicationEventPublisher eventPublisher;
@@ -33,13 +35,14 @@ public class AdminPlayerController {
     @GetMapping("/list")
     public R<Page<Player>> list(PageQuery query,
                                 @RequestParam(value = "status", required = false) String status,
-                                @RequestParam(value = "keyword", required = false) String keyword) {
+                                @RequestParam(value = "keyword", required = false) String keyword,
+                                @RequestParam(value = "workStatus", required = false) String workStatus) {
         LambdaQueryWrapper<Player> w = new LambdaQueryWrapper<Player>()
                 .eq(status != null && !status.isEmpty(), Player::getStatus, status)
                 .and(keyword != null && !keyword.isEmpty(),
                         qw -> qw.like(Player::getNickname, keyword).or().like(Player::getPhone, keyword))
                 .orderByDesc(Player::getCreatedAt);
-        Page<Player> page = playerService.page(new Page<>(query.getPageNum(), query.getPageSize()), w);
+        Page<Player> page = playerWorkStatusService.queryPage(query, w, workStatus);
         for (Player p : page.getRecords()) {
             PlayerWallet wallet = playerWalletService.getByPlayerId(p.getId());
             p.setBalance(wallet != null ? wallet.getBalance() : BigDecimal.ZERO);
@@ -61,6 +64,7 @@ public class AdminPlayerController {
                     .eq(Order::getPlayerId, id)
                     .in(Order::getStatus, "CONFIRMED", "REVIEWED", "SETTLED"));
             p.setCompletedOrders((int) completed);
+            playerWorkStatusService.enrichOne(p);
         }
         return R.ok(p);
     }

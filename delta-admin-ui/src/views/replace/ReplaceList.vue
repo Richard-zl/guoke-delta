@@ -46,7 +46,7 @@
     </el-card>
 
     <!-- 同意换人弹窗：选择处理方式 -->
-    <el-dialog v-model="approveVisible" title="同意换人" width="560px" @closed="resetApproveState">
+    <el-dialog v-model="approveVisible" title="同意换人" width="780px" @closed="resetApproveState">
       <el-alert type="warning" :closable="false" style="margin-bottom:16px">
         <template #title>被换打手本单不参与结算，无任何收益</template>
       </el-alert>
@@ -72,15 +72,21 @@
           </el-form-item>
           <el-form-item><el-button type="primary" @click="searchPlayers">搜索</el-button></el-form-item>
         </el-form>
-        <el-table :data="playerList" v-loading="playerLoading" stripe size="small" max-height="300">
+        <el-table :data="playerList" v-loading="playerLoading" stripe size="small" max-height="300" :row-class-name="playerRowClass">
           <el-table-column prop="nickname" label="昵称" min-width="100" />
           <el-table-column prop="phone" label="手机" width="120" />
-          <el-table-column label="进行中" width="80" align="center">
-            <template #default="{ row }">{{ row.activeOrders ?? '-' }}</template>
+          <el-table-column label="工作状态" width="120">
+            <template #default="{ row }"><el-tag :type="workStatusMeta(row.workStatus).type" size="small">{{ workStatusMeta(row.workStatus).label }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="占用" min-width="150">
+            <template #default="{ row }">{{ formatActiveOrders(row, maxConcurrent) }}</template>
+          </el-table-column>
+          <el-table-column label="在线" width="80">
+            <template #default="{ row }"><el-tag :type="row.isOnline === 1 ? 'success' : 'info'" size="small">{{ row.isOnline === 1 ? '在线' : '离线' }}</el-tag></template>
           </el-table-column>
           <el-table-column label="操作" width="80" align="center">
             <template #default="{ row }">
-              <el-button link type="primary" @click="doApproveAssign(row)">选择</el-button>
+              <el-button link type="primary" :disabled="!isPlayerSelectable(row, maxConcurrent)" @click="doApproveAssign(row)">选择</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -118,6 +124,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { csReplaceList, csReplaceApprove, csReplaceReject, playerAssignList, csOrderAssign } from '@/api/business'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
+import { workStatusMeta, formatActiveOrders, isPlayerSelectable, isPlayerRowDimmed, guardPlayerSelection } from '@/utils/playerWorkStatus'
 
 const statusText = { PENDING: '待处理', APPROVED: '已通过', REJECTED: '已拒绝' }
 const statusTagType = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger' }
@@ -146,6 +153,7 @@ const playerKeyword = ref('')
 const playerPageNum = ref(1)
 const playerTotal = ref(0)
 const playerPageSize = 20
+const maxConcurrent = ref(1)
 
 function openApproveDialog(row) {
   approveRow.value = row
@@ -185,11 +193,14 @@ async function fetchPlayers() {
       keyword: playerKeyword.value || undefined,
     })
     const page = res.data?.players || {}
+    maxConcurrent.value = Number(res.data?.maxConcurrent || 1)
     playerList.value = page.records ?? []
     playerTotal.value = Number(page.total || 0)
-  } catch (e) {
-    ElMessage.error(e?.message || '加载失败')
   } finally { playerLoading.value = false }
+}
+
+function playerRowClass({ row }) {
+  return isPlayerRowDimmed(row) ? 'dimmed-row' : ''
 }
 
 async function doApproveHall() {
@@ -207,6 +218,7 @@ async function doApproveHall() {
 }
 
 async function doApproveAssign(player) {
+  if (!guardPlayerSelection(player, maxConcurrent.value)) return
   try {
     await ElMessageBox.confirm(`确认同意换人并将订单指派给「${player.nickname}」？被换打手本单无收益。`, '确认', { type: 'warning' })
   } catch { return }
@@ -256,4 +268,5 @@ onMounted(fetchData)
 .mode-card:hover { border-color: #409eff; background: #f0f7ff; }
 .mode-title { font-size: 15px; font-weight: bold; color: #303133; margin-bottom: 4px; }
 .mode-desc { font-size: 13px; color: #909399; }
+:deep(.dimmed-row) { opacity: 0.5; }
 </style>

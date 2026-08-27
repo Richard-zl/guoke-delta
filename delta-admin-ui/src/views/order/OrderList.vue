@@ -152,7 +152,7 @@
       </div>
     </el-dialog>
     <!-- 指派弹窗 -->
-    <el-dialog v-model="assignVisible" :title="assignMode === 'reassign' ? '重新指派打手' : '指派打手'" width="700px">
+    <el-dialog v-model="assignVisible" :title="assignMode === 'reassign' ? '重新指派打手' : '指派打手'" width="900px">
       <!-- 已选择的打手显示 -->
       <div style="margin-bottom: 16px; padding: 12px; background: #f5f7fa; border-radius: 8px;">
         <div style="display: flex; gap: 20px; flex-wrap: wrap;">
@@ -185,10 +185,15 @@
                 <el-tag :type="row.isOnline === 1 ? 'success' : 'info'" size="small">{{ row.isOnline === 1 ? '在线' : '离线' }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="80"><template #default="{ row }"><el-tag :type="{ ACTIVE: 'success', PENDING: 'warning', REJECTED: 'danger', FROZEN: 'info' }[row.status] || 'info'" size="small">{{ { PENDING: '待审核', ACTIVE: '正常', REJECTED: '已驳回', FROZEN: '已冻结' }[row.status] || row.status }}</el-tag></template></el-table-column>
+            <el-table-column label="工作状态" width="120">
+              <template #default="{ row }"><el-tag :type="workStatusMeta(row.workStatus).type" size="small">{{ workStatusMeta(row.workStatus).label }}</el-tag></template>
+            </el-table-column>
+            <el-table-column label="占用" min-width="150">
+              <template #default="{ row }">{{ formatActiveOrders(row, maxConcurrent) }}</template>
+            </el-table-column>
             <el-table-column label="操作" width="80">
               <template #default="{ row }">
-                <el-button link type="primary" :disabled="row.isOnline !== 1" @click="selectMainPlayer(row)">选择</el-button>
+                <el-button link type="primary" :disabled="!isPlayerSelectable(row, maxConcurrent)" @click="selectMainPlayer(row)">选择</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -217,10 +222,15 @@
                 <el-tag :type="row.isOnline === 1 ? 'success' : 'info'" size="small">{{ row.isOnline === 1 ? '在线' : '离线' }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="80"><template #default="{ row }"><el-tag :type="{ ACTIVE: 'success', PENDING: 'warning', REJECTED: 'danger', FROZEN: 'info' }[row.status] || 'info'" size="small">{{ { PENDING: '待审核', ACTIVE: '正常', REJECTED: '已驳回', FROZEN: '已冻结' }[row.status] || row.status }}</el-tag></template></el-table-column>
+            <el-table-column label="工作状态" width="120">
+              <template #default="{ row }"><el-tag :type="workStatusMeta(row.workStatus).type" size="small">{{ workStatusMeta(row.workStatus).label }}</el-tag></template>
+            </el-table-column>
+            <el-table-column label="占用" min-width="150">
+              <template #default="{ row }">{{ formatActiveOrders(row, maxConcurrent) }}</template>
+            </el-table-column>
             <el-table-column label="操作" width="80">
               <template #default="{ row }">
-                <el-button link type="primary" :disabled="row.isOnline !== 1" @click="selectAssistPlayer(row)">选择</el-button>
+                <el-button link type="primary" :disabled="!isPlayerSelectable(row, maxConcurrent)" @click="selectAssistPlayer(row)">选择</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -250,6 +260,7 @@ import { getProductList } from '@/api/product'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
+import { workStatusMeta, formatActiveOrders, isPlayerSelectable, isPlayerRowDimmed, guardPlayerSelection } from '@/utils/playerWorkStatus'
 
 const userStore = useUserStore()
 const isAdmin = userStore.role === 'admin'
@@ -493,6 +504,7 @@ const playerPageNum = ref(1), playerTotal = ref(0)
 const playerSearch2 = ref(''), playerList2 = ref([]), playerLoading2 = ref(false)
 const playerPageNum2 = ref(1), playerTotal2 = ref(0)
 const playerPageSize = 20
+const maxConcurrent = ref(1)
 const selectedMainPlayer = ref(null)
 const selectedMainPlayerName = ref('')
 const selectedAssistPlayer = ref(null)
@@ -553,6 +565,7 @@ async function fetchPlayers() {
       keyword: playerSearch.value || undefined,
     })
     const page = res.data?.players || {}
+    maxConcurrent.value = Number(res.data?.maxConcurrent || 1)
     playerList.value = page.records || []
     playerTotal.value = Number(page.total || 0)
     syncSelectedNameFromList('main')
@@ -568,6 +581,7 @@ async function fetchPlayers2() {
       keyword: playerSearch2.value || undefined,
     })
     const page = res.data?.players || {}
+    maxConcurrent.value = Number(res.data?.maxConcurrent || 1)
     playerList2.value = page.records || []
     playerTotal2.value = Number(page.total || 0)
     syncSelectedNameFromList('assist')
@@ -587,10 +601,11 @@ function syncSelectedNameFromList(type) {
 }
 
 function playerRowClass({ row }) {
-  return row.isOnline !== 1 ? 'offline-row' : ''
+  return isPlayerRowDimmed(row) ? 'dimmed-row' : ''
 }
 
 function selectMainPlayer(player) {
+  if (!guardPlayerSelection(player, maxConcurrent.value)) return
   selectedMainPlayer.value = player.id
   selectedMainPlayerName.value = resolvePlayerName(player)
   assignTab.value = 'assist'
@@ -598,6 +613,7 @@ function selectMainPlayer(player) {
 }
 
 function selectAssistPlayer(player) {
+  if (!guardPlayerSelection(player, maxConcurrent.value)) return
   selectedAssistPlayer.value = player.id
   selectedAssistPlayerName.value = resolvePlayerName(player)
   ElMessage.success(`已选择辅助打手：${formatSelectedPlayer(selectedAssistPlayerName.value, selectedAssistPlayer.value)}`)
@@ -631,7 +647,7 @@ onMounted(fetchData)
 .search-form { margin-bottom: 12px; }
 .quick-filters { margin-bottom: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .quick-label { color: #909399; font-size: 13px; }
-:deep(.offline-row) { opacity: 0.5; }
+:deep(.dimmed-row) { opacity: 0.5; }
 .detail-actions { margin-top: 16px; text-align: right; }
 .progress-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .progress-image { width: 72px; height: 72px; border-radius: 6px; overflow: hidden; }

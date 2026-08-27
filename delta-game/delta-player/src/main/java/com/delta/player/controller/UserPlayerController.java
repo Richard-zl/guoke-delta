@@ -10,7 +10,7 @@ import com.delta.order.entity.Order;
 import com.delta.order.service.OrderService;
 import com.delta.player.entity.Player;
 import com.delta.player.service.PlayerService;
-import com.delta.system.service.SysConfigService;
+import com.delta.player.service.PlayerWorkStatusService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,7 +28,7 @@ public class UserPlayerController {
     private final PlayerService playerService;
     private final OrderService orderService;
     private final CrossModuleMapper crossModuleMapper;
-    private final SysConfigService sysConfigService;
+    private final PlayerWorkStatusService playerWorkStatusService;
 
     @GetMapping("/available-players")
     public R<Map<String, Object>> availablePlayers(PageQuery query,
@@ -40,9 +40,9 @@ public class UserPlayerController {
         Page<Player> page = playerService.page(new Page<>(query.getPageNum(), query.getPageSize()), w);
         for (Player p : page.getRecords()) {
             p.setCompletedOrders(crossModuleMapper.selectPlayerCompletedOrders(p.getId()));
-            p.setActiveOrders(crossModuleMapper.selectPlayerActiveOrders(p.getId()));
         }
-        int maxConcurrent = Integer.parseInt(sysConfigService.getConfigValue("order.max_active_per_player", "5"));
+        playerWorkStatusService.enrichBatch(page.getRecords());
+        int maxConcurrent = playerWorkStatusService.getMaxConcurrent();
         Map<String, Object> result = new HashMap<>();
         result.put("players", page);
         result.put("maxConcurrent", maxConcurrent);

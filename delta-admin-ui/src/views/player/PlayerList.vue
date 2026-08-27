@@ -1,7 +1,15 @@
 <template>
   <div class="page-container">
     <el-card>
-      <template #header><span>打手管理</span></template>
+      <template #header>
+        <div class="card-header">
+          <span>打手管理</span>
+          <div class="refresh-area">
+            <span v-if="lastUpdatedAt" class="updated-time">{{ formatUpdateTime(lastUpdatedAt) }} 更新</span>
+            <el-button link type="primary" @click="fetchData">刷新</el-button>
+          </div>
+        </div>
+      </template>
       <el-form :inline="true" :model="query" class="search-form">
         <el-form-item><el-input v-model="query.keyword" placeholder="搜索打手" clearable @keyup.enter="fetchData" /></el-form-item>
         <el-form-item>
@@ -10,9 +18,14 @@
             <el-option label="已驳回" value="REJECTED" /><el-option label="已冻结" value="FROZEN" />
           </el-select>
         </el-form-item>
-        <el-form-item><el-button type="primary" @click="fetchData">查询</el-button><el-button @click="query.keyword='';query.status='';fetchData()">重置</el-button></el-form-item>
+        <el-form-item>
+          <el-select v-model="query.workStatus" placeholder="工作状态">
+            <el-option v-for="item in WORK_STATUS_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item><el-button type="primary" @click="fetchData">查询</el-button><el-button @click="resetQuery">重置</el-button></el-form-item>
       </el-form>
-      <el-table :data="list" v-loading="loading" stripe>
+      <el-table :data="list" v-loading="loading" stripe :row-class-name="playerRowClass">
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column label="头像" width="80">
           <template #default="{ row }">
@@ -27,6 +40,20 @@
         <el-table-column prop="balance" label="余额" width="100"><template #default="{ row }">¥{{ row.balance || 0 }}</template></el-table-column>
         <el-table-column prop="depositPaymentNo" label="押金订单号" width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ row.depositPaymentNo || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="工作状态" width="120">
+          <template #default="{ row }">
+            <el-tag :type="workStatusMeta(row.workStatus).type" size="small">{{ workStatusMeta(row.workStatus).label }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="订单占用" min-width="170">
+          <template #default="{ row }">{{ formatActiveOrders(row) }}</template>
+        </el-table-column>
+        <el-table-column label="在线状态" min-width="165">
+          <template #default="{ row }">
+            <el-tag :type="row.isOnline === 1 ? 'success' : 'info'" size="small">{{ row.isOnline === 1 ? '在线' : '离线' }}</el-tag>
+            <div class="last-online">最后在线：{{ row.lastOnlineAt || '-' }}</div>
+          </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" min-width="150">
           <template #default="{ row }">
@@ -181,26 +208,54 @@
   </div>
 </template>
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { adminPlayerList, adminPlayerDetail, adminPlayerTransactions, adminPlayerApprove, adminPlayerReject, adminPlayerUpdateStatus, adminPlayerFreeze, adminPlayerUnfreeze, adminPlayerUpdate, csPlayerList, csPlayerDetail, csPlayerTransactions, csPlayerAudit, csPlayerFreeze, csPlayerUpdateNickname, adminOrderList, csOrderList } from '@/api/business'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
+import { WORK_STATUS_OPTIONS, workStatusMeta, formatActiveOrders, isPlayerRowDimmed } from '@/utils/playerWorkStatus'
 const userStore = useUserStore()
 const isAdmin = userStore.role === 'admin'
 const loading = ref(false), list = ref([]), total = ref(0)
-const query = reactive({ pageNum: 1, pageSize: 10, keyword: '', status: '' })
+const query = reactive({ pageNum: 1, pageSize: 10, keyword: '', status: '', workStatus: 'AVAILABLE' })
+const lastUpdatedAt = ref(null)
+const POLL_INTERVAL_MS = 30_000
+let pollTimer = null
 const statusMap = { PENDING: '待审核', ACTIVE: '正常', REJECTED: '已驳回', FROZEN: '已冻结' }
 const statusTagMap = { PENDING: 'warning', ACTIVE: 'success', REJECTED: 'danger', FROZEN: 'info' }
 function statusText(s) { return statusMap[s] || s }
 function statusTagType(s) { return statusTagMap[s] || '' }
-async function fetchData() {
-  loading.value = true
+async function fetchData({ silent = false } = {}) {
+  if (!silent) loading.value = true
   try {
     const fn = isAdmin ? adminPlayerList : csPlayerList
     const res = await fn(query)
-    list.value = res.data.records; total.value = Number(res.data.total)
-  } finally { loading.value = false }
+    list.value = res.data?.records || []
+    total.value = Number(res.data?.total || 0)
+    lastUpdatedAt.value = new Date()
+  } catch {
+    // 请求层已统一提示错误，保留上一次成功数据。
+  } finally {
+    if (!silent) loading.value = false
+  }
+}
+function resetQuery() {
+  Object.assign(query, { pageNum: 1, pageSize: 10, keyword: '', status: '', workStatus: 'AVAILABLE' })
+  fetchData()
+}
+function formatUpdateTime(date) {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+function playerRowClass({ row }) {
+  return isPlayerRowDimmed(row) ? 'dimmed-row' : ''
+}
+function startPolling() {
+  stopPolling()
+  pollTimer = setInterval(() => fetchData({ silent: true }), POLL_INTERVAL_MS)
+}
+function stopPolling() {
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = null
 }
 async function handleApprove(id) {
   if (isAdmin) await adminPlayerApprove(id)
@@ -374,9 +429,20 @@ async function fetchPlayerOrders() {
   } finally { ordersLoading.value = false }
 }
 
-onMounted(fetchData)
+onMounted(() => {
+  fetchData()
+  startPolling()
+})
+onBeforeUnmount(stopPolling)
 </script>
-<style scoped>.search-form { margin-bottom: 16px; }</style>
+<style scoped>
+.search-form { margin-bottom: 16px; }
+.card-header, .refresh-area { display: flex; align-items: center; justify-content: space-between; }
+.refresh-area { gap: 10px; }
+.updated-time, .last-online { color: #909399; font-size: 12px; }
+.last-online { margin-top: 4px; }
+:deep(.dimmed-row) { opacity: 0.5; }
+</style>
 
 <style scoped>
 .player-detail {
