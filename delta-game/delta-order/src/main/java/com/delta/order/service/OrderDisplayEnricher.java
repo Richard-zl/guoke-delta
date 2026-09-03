@@ -7,7 +7,9 @@ import com.delta.order.entity.OrderPlayer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 订单列表/详情展示字段填充（主接打手、辅助打手、用户昵称等）
@@ -18,9 +20,22 @@ public class OrderDisplayEnricher {
 
     private final OrderPlayerService orderPlayerService;
     private final CrossModuleMapper crossModuleMapper;
+    private final RefundRequestService refundRequestService;
 
     /** 填充用户、主接打手、辅助打手展示字段 */
     public void enrich(Order order) {
+        enrichWithoutRefund(order);
+        fillRefundPending(order);
+    }
+
+    public void enrichList(List<Order> orders) {
+        if (orders == null || orders.isEmpty()) return;
+        orders.forEach(this::enrichWithoutRefund);
+        fillRefundPending(orders);
+    }
+
+    /** 仅填充用户/打手展示字段，退款标记由列表批量查询 */
+    private void enrichWithoutRefund(Order order) {
         if (order == null) return;
         if (order.getUserId() != null) {
             String nick = crossModuleMapper.selectUserNickname(order.getUserId());
@@ -40,9 +55,18 @@ public class OrderDisplayEnricher {
         }
     }
 
-    public void enrichList(List<Order> orders) {
-        if (orders == null) return;
-        orders.forEach(this::enrich);
+    public void fillRefundPending(Order order) {
+        if (order == null || order.getId() == null) return;
+        order.setRefundPending(refundRequestService.isPending(order.getId()));
+    }
+
+    public void fillRefundPending(List<Order> orders) {
+        if (orders == null || orders.isEmpty()) return;
+        List<Long> ids = orders.stream().map(Order::getId).filter(id -> id != null).toList();
+        Set<Long> pending = new HashSet<>(refundRequestService.listPendingOrderIds(ids));
+        for (Order order : orders) {
+            order.setRefundPending(order.getId() != null && pending.contains(order.getId()));
+        }
     }
 
     /**

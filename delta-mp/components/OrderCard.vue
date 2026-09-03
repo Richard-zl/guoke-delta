@@ -85,6 +85,7 @@ const showChat = computed(() => {
 })
 
 const actionText = computed(() => {
+  if (props.order.refundPending) return '退款审核中'
   if (isPlayerView.value) {
     const playerMap = {
       ASSIGNED: '接单',

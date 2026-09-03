@@ -13,9 +13,11 @@ public interface ScheduledTaskMapper {
 
     // ========== OrderAutoAssignTask ==========
 
-    @Select("SELECT id, required_player_count FROM `order` WHERE status = 'PAID' " +
-            "AND player_id IS NULL AND designated_player_id IS NULL " +
-            "AND created_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE) LIMIT 20")
+    @Select("SELECT id, required_player_count FROM `order` o WHERE o.status = 'PAID' " +
+            "AND o.player_id IS NULL AND o.designated_player_id IS NULL " +
+            "AND o.created_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE) " +
+            "AND NOT EXISTS (SELECT 1 FROM refund_request r WHERE r.order_id = o.id AND r.status = 'PENDING') " +
+            "LIMIT 20")
     List<Map<String, Object>> selectUnassignedOrders();
 
     @Select("""
@@ -56,7 +58,8 @@ public interface ScheduledTaskMapper {
     String selectConfigValue(@Param("key") String key);
 
     @Update("UPDATE `order` SET player_id = #{playerId}, assign_time = NOW(), " +
-            "status = 'ASSIGNED', updated_at = NOW() WHERE id = #{orderId} AND status = 'PAID'")
+            "status = 'ASSIGNED', updated_at = NOW() WHERE id = #{orderId} AND status = 'PAID' " +
+            "AND NOT EXISTS (SELECT 1 FROM refund_request r WHERE r.order_id = #{orderId} AND r.status = 'PENDING')")
     int assignOrderToPlayer(@Param("orderId") Long orderId, @Param("playerId") Long playerId);
 
     // ========== OrderAutoCancelTask ==========

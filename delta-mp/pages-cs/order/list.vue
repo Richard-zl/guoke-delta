@@ -24,7 +24,7 @@
           </view>
           <text class="time">{{ o.createdAt }}</text>
         </view>
-        <view v-if="o.status==='PAID' || o.status==='ASSIGNED'" class="card-actions">
+        <view v-if="(o.status==='PAID' || o.status==='ASSIGNED') && !o.refundPending" class="card-actions">
           <view class="btn-assign" @click.stop="goAssign(o.id)">指派接单员</view>
         </view>
       </view>

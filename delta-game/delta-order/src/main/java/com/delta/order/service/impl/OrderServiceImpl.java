@@ -19,6 +19,7 @@ import com.delta.order.service.OrderPlayerService;
 import com.delta.order.service.OrderProgressService;
 import com.delta.order.service.OrderPriceResolver;
 import com.delta.order.service.OrderService;
+import com.delta.order.service.RefundRequestService;
 import com.delta.common.chat.service.ChatSessionService;
 import com.delta.common.chat.util.ChatParticipantId;
 import com.delta.product.dto.MemberDiscountResult;
@@ -60,6 +61,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private final TrialOrderService trialOrderService;
     private final MemberDiscountService memberDiscountService;
     private final ProductVariantService productVariantService;
+    private final RefundRequestService refundRequestService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -201,16 +203,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             transition(order, OrderStatusEnum.CANCELLED, "USER", userId, "用户取消订单");
             redisTemplate.delete("order:pay_timeout:" + orderId);
             eventPublisher.publishEvent(new BusinessEvent(this, "ORDER_CANCELLED", "USER", userId, orderId, "订单已取消"));
-        } else if (OrderStatusEnum.PAID.name().equals(status) && order.getPlayerId() == null) {
-            transition(order, OrderStatusEnum.REFUNDING, "USER", userId, "用户申请退款");
-            eventPublisher.publishEvent(new BusinessEvent(this, "ORDER_CANCEL_REFUND",
-                    "USER", userId, orderId, "订单退款处理中"));
-        } else if (OrderStatusEnum.ASSIGNED.name().equals(status)) {
-            order.setPlayerId(null);
-            order.setPlayerName(null);
-            transition(order, OrderStatusEnum.REFUNDING, "USER", userId, "用户申请退款（已指派）");
-            eventPublisher.publishEvent(new BusinessEvent(this, "ORDER_CANCEL_REFUND",
-                    "USER", userId, orderId, "订单退款处理中"));
+        } else if ((OrderStatusEnum.PAID.name().equals(status) && order.getPlayerId() == null)
+                || OrderStatusEnum.ASSIGNED.name().equals(status)) {
+            // 待接单/已指派：提交退款审核，不立刻打款
+            refundRequestService.apply(order, userId, null);
+            addProgress(orderId, status, status, "USER", userId, "用户申请退款，等待审核");
+            eventPublisher.publishEvent(new BusinessEvent(this, "REFUND_REQUEST",
+                    "CS", null, orderId, "用户申请退款，订单ID: " + orderId));
+            if (order.getPlayerId() != null) {
+                eventPublisher.publishEvent(new BusinessEvent(this, "REFUND_REQUEST",
+                        "PLAYER", order.getPlayerId(), orderId, "用户已申请退款，请暂停操作"));
+            }
         } else {
             throw new BusinessException("当前状态不允许取消");
         }
@@ -226,11 +229,43 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 && !OrderStatusEnum.IN_PROGRESS.name().equals(status)) {
             throw new BusinessException("当前状态不允许退款");
         }
+        Long playerId = order.getPlayerId();
         order.setPlayerId(null);
         order.setPlayerName(null);
         transition(order, OrderStatusEnum.REFUNDING, "CS", operatorId, "客服操作退款");
         eventPublisher.publishEvent(new BusinessEvent(this, "ORDER_CANCEL_REFUND",
                 "CS", operatorId, orderId, "客服操作退款处理中"));
+        refundRequestService.closePendingAsApproved(orderId, operatorId, "客服一键退款");
+        if (playerId != null) {
+            eventPublisher.publishEvent(new BusinessEvent(this, "ORDER_REFUNDED",
+                    "PLAYER", playerId, orderId, "订单已退款取消"));
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void refundAfterReview(Long orderId, Long operatorId) {
+        Order order = getById(orderId);
+        if (order == null) throw new BusinessException("订单不存在");
+        String status = order.getStatus();
+        if (!OrderStatusEnum.PAID.name().equals(status)
+                && !OrderStatusEnum.ASSIGNED.name().equals(status)) {
+            throw new BusinessException("当前状态不允许退款");
+        }
+        Long playerId = order.getPlayerId();
+        if (OrderStatusEnum.ASSIGNED.name().equals(status)) {
+            order.setPlayerId(null);
+            order.setPlayerName(null);
+        }
+        transition(order, OrderStatusEnum.REFUNDING, "CS", operatorId, "客服同意退款");
+        eventPublisher.publishEvent(new BusinessEvent(this, "ORDER_CANCEL_REFUND",
+                "CS", operatorId, orderId, "订单退款处理中"));
+        eventPublisher.publishEvent(new BusinessEvent(this, "REFUND_APPROVED",
+                "USER", order.getUserId(), orderId, "退款申请已通过，款项将原路退回"));
+        if (playerId != null) {
+            eventPublisher.publishEvent(new BusinessEvent(this, "REFUND_APPROVED",
+                    "PLAYER", playerId, orderId, "用户退款已通过，订单已取消"));
+        }
     }
 
     @Override
@@ -244,6 +279,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     public void assignOrder(Long orderId, Long playerId, Long playerId2, String operatorType, Long operatorId) {
         Order order = getById(orderId);
         if (order == null) throw new BusinessException("订单不存在");
+        refundRequestService.assertNotPending(orderId);
         String currentStatus = order.getStatus();
         if (!OrderStatusEnum.PAID.name().equals(currentStatus)
                 && !OrderStatusEnum.ASSIGNED.name().equals(currentStatus)) {
@@ -343,6 +379,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         try {
             Order order = getById(orderId);
             if (order == null) throw new BusinessException("订单不存在");
+            refundRequestService.assertNotPending(orderId);
             if (!OrderStatusEnum.PAID.name().equals(order.getStatus()) &&
                     !OrderStatusEnum.ASSIGNED.name().equals(order.getStatus()))
                 throw new BusinessException("当前状态不允许接单");
@@ -387,6 +424,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     public void rejectAssign(Long orderId, Long playerId, String reason) {
         Order order = getById(orderId);
         validateStatus(order, OrderStatusEnum.ASSIGNED);
+        refundRequestService.assertNotPending(orderId);
         if (!playerId.equals(order.getPlayerId())) throw new BusinessException("无权操作");
         retireActiveTeammates(orderId, null);
         update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Order>()

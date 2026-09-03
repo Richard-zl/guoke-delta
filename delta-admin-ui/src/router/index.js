@@ -145,6 +145,19 @@ const routes = [
       }
     ]
   },
+  // 退款审核
+  {
+    path: '/refund',
+    component: Layout,
+    children: [
+      {
+        path: '',
+        name: 'RefundList',
+        component: () => import('@/views/refund/RefundList.vue'),
+        meta: { title: '退款审核', icon: 'Money', roles: ['admin', 'cs'] }
+      }
+    ]
+  },
   // 换人申请
   {
     path: '/replace',

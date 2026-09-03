@@ -66,8 +66,9 @@
     </view>
     <!-- 操作按钮 -->
     <view class="actions">
-      <view v-if="order.status==='ASSIGNED'" class="btn" @click="doAccept">接单</view>
-      <view v-if="order.status==='ASSIGNED'" class="btn-warn" @click="doReject">拒绝</view>
+      <view v-if="order.refundPending" class="btn-ghost">退款审核中，请暂停操作</view>
+      <view v-else-if="order.status==='ASSIGNED'" class="btn" @click="doAccept">接单</view>
+      <view v-if="!order.refundPending && order.status==='ASSIGNED'" class="btn-warn" @click="doReject">拒绝</view>
       <view v-if="['ACCEPTED','WAITING_TEAMMATE'].includes(order.status)" class="btn" @click="doStart">开始服务</view>
       <view v-if="order.status==='IN_PROGRESS'" class="btn" @click="goProgress">提交进度</view>
       <view v-if="order.status==='IN_PROGRESS'" class="btn btn-success" @click="doComplete">完成服务</view>

@@ -13,6 +13,7 @@ import com.delta.order.entity.PlayerReplaceRequest;
 import com.delta.order.service.OrderPlayerService;
 import com.delta.order.service.OrderProgressService;
 import com.delta.order.service.OrderService;
+import com.delta.order.service.OrderDisplayEnricher;
 import com.delta.order.service.PlayerReplaceRequestService;
 import com.delta.common.dto.OrderCouponView;
 import com.delta.common.service.CouponService;
@@ -33,6 +34,7 @@ public class OrderController {
     private final ApplicationEventPublisher eventPublisher;
     private final com.delta.common.mapper.CrossModuleMapper crossModuleMapper;
     private final CouponService couponService;
+    private final OrderDisplayEnricher orderDisplayEnricher;
 
     @PostMapping
     public R<Order> create(@RequestBody CreateOrderRequest request) {
@@ -48,6 +50,7 @@ public class OrderController {
                 .orderByDesc(Order::getCreatedAt);
         Page<Order> page = orderService.page(new Page<>(query.getPageNum(), query.getPageSize()), wrapper);
         fillPlayerInfo(page.getRecords());
+        orderDisplayEnricher.fillRefundPending(page.getRecords());
         return R.ok(page);
     }
 
@@ -66,6 +69,7 @@ public class OrderController {
             // 填充队友信息
             fillTeammates(order);
             fillCouponInfo(order);
+            orderDisplayEnricher.fillRefundPending(order);
         }
         return R.ok(order);
     }

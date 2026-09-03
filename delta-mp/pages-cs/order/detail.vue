@@ -57,7 +57,8 @@
     </view>
     <!-- 操作按钮 -->
     <view class="actions">
-      <view v-if="order.status==='PAID'||order.status==='PENDING'" class="btn" @click="goAssign">指派接单员</view>
+      <view v-if="(order.status==='PAID'||order.status==='PENDING') && !order.refundPending" class="btn" @click="goAssign">指派接单员</view>
+      <view v-if="order.refundPending" class="btn-ghost">退款审核中</view>
       <view v-if="order.status==='COMPLETED'" class="btn" @click="doConfirm">结单</view>
       <view v-if="['ASSIGNED','IN_PROGRESS'].includes(order.status)" class="btn-warn" @click="doRefund">退款</view>
       <view class="btn-ghost" @click="goChat">联系用户</view>

@@ -24,7 +24,7 @@ import lombok.Getter;
  *
  * —— 取消/退款 ——
  * PENDING_PAYMENT → 用户取消/超时未付 → CANCELLED(已取消)
- * PAID            → 用户取消(未接单) → REFUNDING(退款中) → REFUNDED(已退款)
+ * PAID / ASSIGNED → 用户申请退款 → 客服审核通过 → REFUNDING(退款中) → REFUNDED(已退款)
  *
  * —— 争议/仲裁 ——
  * IN_PROGRESS / COMPLETED → 用户投诉 → DISPUTED(争议中)

@@ -7,6 +7,7 @@ import com.delta.order.entity.Order;
 import com.delta.order.entity.OrderPlayer;
 import com.delta.order.service.OrderPlayerService;
 import com.delta.order.service.OrderService;
+import com.delta.order.service.RefundRequestService;
 import com.delta.pay.entity.Transaction;
 import com.delta.pay.service.TransactionService;
 import com.delta.player.entity.PlayerWallet;
@@ -98,6 +99,7 @@ public class PlayerHomeController {
         List<Order> availableOrders = orderService.list(new LambdaQueryWrapper<Order>()
                 .eq(Order::getStatus, "PAID")
                 .isNull(Order::getDesignatedPlayerId)
+                .notInSql(Order::getId, RefundRequestService.PENDING_ORDER_ID_SQL)
                 .orderByDesc(Order::getCreatedAt)
                 .last("LIMIT 5"));
         result.put("availableOrders", availableOrders);

@@ -99,4 +99,8 @@ public class Order {
     /** 队友列表（非DB字段，详情展示用） */
     @TableField(exist = false)
     private List<OrderPlayer> teammates;
+
+    /** 是否有待审核退款申请（非DB字段） */
+    @TableField(exist = false)
+    private Boolean refundPending;
 }

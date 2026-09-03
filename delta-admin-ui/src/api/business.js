@@ -233,6 +233,17 @@ export function csReplaceReject(id, remark) {
   return request({ url: `/cs/replace/${id}/reject`, method: 'put', data: { remark } })
 }
 
+// ==================== 退款审核 ====================
+export function csRefundList(params) {
+  return request({ url: '/cs/refund/list', method: 'get', params })
+}
+export function csRefundApprove(id, remark) {
+  return request({ url: `/cs/refund/${id}/approve`, method: 'put', data: { remark } })
+}
+export function csRefundReject(id, remark) {
+  return request({ url: `/cs/refund/${id}/reject`, method: 'put', data: { remark } })
+}
+
 // ==================== 接力申请 ====================
 export function csRelayList(params) {
   return request({ url: '/cs/relay/list', method: 'get', params })

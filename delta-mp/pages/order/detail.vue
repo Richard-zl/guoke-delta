@@ -73,8 +73,9 @@
     <view class="actions">
       <view v-if="order.status==='PENDING_PAYMENT'" class="btn" @click="goPay">去支付</view>
       <view v-if="order.status==='PENDING_PAYMENT'" class="btn-ghost" @click="doCancel">取消订单</view>
-      <view v-if="['PAID','ASSIGNED'].includes(order.status)" class="btn-warn" @click="doRefund">申请退款</view>
-      <view v-if="order.status==='PAID' && !order.playerId" class="btn" @click="showDesignatePicker = true">指定接单员</view>
+      <view v-if="['PAID','ASSIGNED'].includes(order.status) && !order.refundPending" class="btn-warn" @click="doRefund">申请退款</view>
+      <view v-if="order.refundPending" class="btn-ghost">退款审核中</view>
+      <view v-if="order.status==='PAID' && !order.playerId && !order.refundPending" class="btn" @click="showDesignatePicker = true">指定接单员</view>
       <view v-if="order.status==='COMPLETED'" class="btn" @click="doConfirm">确认完成</view>
       <view v-if="order.status==='CONFIRMED' && !order.reviewed" class="btn" @click="goReview">⭐ 去评价</view>
       <view v-if="!isUnderReview && ['IN_PROGRESS','COMPLETED','CONFIRMED'].includes(order.status)" class="btn-ghost" @click="goChat">💬 聊天</view>
@@ -250,8 +251,8 @@ async function doCancel() {
   }})
 }
 async function doRefund() {
-  uni.showModal({ title: '提示', content: '确定申请退款？订单将被取消并退回支付金额？', success: async (r) => {
-    if (r.confirm) { await cancelOrder(orderId.value); uni.showToast({ title: '退款申请已提交' }); loadDetail() }
+  uni.showModal({ title: '提示', content: '确定申请退款？提交后需等待客服审核，通过后退回支付金额。', success: async (r) => {
+    if (r.confirm) { await cancelOrder(orderId.value); uni.showToast({ title: '退款申请已提交，等待审核' }); loadDetail() }
   }})
 }
 async function doConfirm() {

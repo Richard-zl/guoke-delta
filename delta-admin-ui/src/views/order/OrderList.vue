@@ -87,8 +87,11 @@
           <template #default="{ row }">{{ row.playerName2 || (row.playerId2 ? 'ID: ' + row.playerId2 : '-') }}</template>
         </el-table-column>
         <el-table-column prop="amount" label="金额" width="100"><template #default="{ row }">¥{{ row.amount }}</template></el-table-column>
-        <el-table-column prop="status" label="状态" width="110">
-          <template #default="{ row }"><el-tag :type="orderTagType(row.status)" size="small">{{ orderStatusLabel(row.status) }}</el-tag></template>
+        <el-table-column prop="status" label="状态" width="180">
+          <template #default="{ row }">
+            <el-tag :type="orderTagType(row.status)" size="small">{{ orderStatusLabel(row.status) }}</el-tag>
+            <el-tag v-if="row.refundPending" type="danger" size="small" style="margin-left:6px">退款审核中</el-tag>
+          </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="下单时间" width="170" />
         <el-table-column label="操作" width="280" fixed="right">
@@ -105,7 +108,10 @@
     <el-dialog v-model="detailVisible" title="订单详情" width="700px">
       <el-descriptions :column="2" border v-if="detail" v-loading="detailLoading">
         <el-descriptions-item label="订单号">{{ detail.orderNo }}</el-descriptions-item>
-        <el-descriptions-item label="状态"><el-tag :type="orderTagType(detail.status)" size="small">{{ orderStatusLabel(detail.status) }}</el-tag></el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="orderTagType(detail.status)" size="small">{{ orderStatusLabel(detail.status) }}</el-tag>
+          <el-tag v-if="detail.refundPending" type="danger" size="small" style="margin-left:6px">退款审核中</el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="商品">{{ detail.productName }}</el-descriptions-item>
         <el-descriptions-item label="规格">{{ detail.variantName || detail.specInfo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="单价">{{ detail.unitPrice != null ? '¥' + detail.unitPrice : '-' }}</el-descriptions-item>
@@ -511,6 +517,7 @@ const selectedAssistPlayer = ref(null)
 const selectedAssistPlayerName = ref('')
 
 function canAssign(row) {
+  if (row.refundPending) return false
   return (row.status === 'PAID' && !row.playerId) || row.status === 'ASSIGNED'
 }
 

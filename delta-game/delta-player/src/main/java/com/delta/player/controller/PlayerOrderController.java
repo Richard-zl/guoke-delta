@@ -20,6 +20,7 @@ import com.delta.order.service.OrderDisplayEnricher;
 import com.delta.order.service.OrderPlayerService;
 import com.delta.order.service.OrderProgressService;
 import com.delta.order.service.OrderService;
+import com.delta.order.service.RefundRequestService;
 import com.delta.player.entity.Player;
 import com.delta.player.service.PlayerService;
 import com.delta.player.service.PlayerWorkStatusService;
@@ -69,6 +70,7 @@ public class PlayerOrderController {
                 // 显示未指定打手的订单 + 指定给当前打手的订单
                 .and(aw -> aw.isNull(Order::getDesignatedPlayerId)
                         .or().eq(Order::getDesignatedPlayerId, playerId))
+                .notInSql(Order::getId, RefundRequestService.PENDING_ORDER_ID_SQL)
                 .orderByDesc(Order::getCreatedAt);
         List<Long> ids = parseCategoryIds(categoryIds);
         if (!ids.isEmpty()) {
