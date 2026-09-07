@@ -65,6 +65,7 @@
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
           <el-button @click="resetQuery">重置</el-button>
+          <el-button :loading="exporting" @click="handleExport">导出表格</el-button>
         </el-form-item>
       </el-form>
       <div class="quick-filters">
@@ -267,6 +268,7 @@ import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
 import { workStatusMeta, formatActiveOrders, isPlayerSelectable, isPlayerRowDimmed, guardPlayerSelection } from '@/utils/playerWorkStatus'
+import { exportCsv, fetchAllRecords } from '@/utils/exportTable'
 
 const userStore = useUserStore()
 const isAdmin = userStore.role === 'admin'
@@ -295,6 +297,7 @@ function parsedExtraFields(order) {
 }
 
 const loading = ref(false), list = ref([]), total = ref(0)
+const exporting = ref(false)
 const dateRange = ref(null)
 const activeQuick = ref('')
 const userOptions = ref([]), userSearchLoading = ref(false)
@@ -473,6 +476,48 @@ async function fetchData() {
     const res = await fn(buildOrderParams())
     list.value = res.data.records; total.value = Number(res.data.total)
   } finally { loading.value = false }
+}
+
+function formatOrderUser(row) {
+  return row.userNickname || (row.userId ? `ID: ${row.userId}` : '-')
+}
+function formatMainPlayer(row) {
+  return row.playerName || (row.playerId ? `ID: ${row.playerId}` : '未指派')
+}
+function formatAssistPlayer(row) {
+  return row.playerName2 || (row.playerId2 ? `ID: ${row.playerId2}` : '-')
+}
+function formatOrderStatus(row) {
+  const label = orderStatusLabel(row.status)
+  return row.refundPending ? `${label}（退款审核中）` : label
+}
+
+/** 按当前筛选导出全部订单，表头与列表一致（不含操作列） */
+async function handleExport() {
+  exporting.value = true
+  try {
+    const fn = isAdmin ? adminOrderList : csOrderList
+    const { records, truncated } = await fetchAllRecords(fn, buildOrderParams())
+    if (!records.length) {
+      ElMessage.warning('没有可导出的订单')
+      return
+    }
+    exportCsv('订单列表', ['ID', '订单号', '商品', '用户', '主接打手', '辅助打手', '金额', '状态', '下单时间'], records.map((row) => [
+      row.id,
+      row.orderNo,
+      row.productName || '-',
+      formatOrderUser(row),
+      formatMainPlayer(row),
+      formatAssistPlayer(row),
+      row.amount ?? '',
+      formatOrderStatus(row),
+      row.createdAt || '',
+    ]))
+    if (truncated) ElMessage.warning('导出已截断为前 10000 条，请缩小筛选范围')
+    else ElMessage.success(`已导出 ${records.length} 条`)
+  } finally {
+    exporting.value = false
+  }
 }
 
 // 详情

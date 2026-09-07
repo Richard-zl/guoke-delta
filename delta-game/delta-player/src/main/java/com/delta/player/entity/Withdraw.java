@@ -29,6 +29,9 @@ public class Withdraw extends BaseEntity {
     /** 打手昵称（非DB字段） */
     @TableField(exist = false)
     private String playerName;
+    /** 打手真实姓名（非DB字段，导出用） */
+    @TableField(exist = false)
+    private String playerRealName;
     /** 打手手机号（非DB字段） */
     @TableField(exist = false)
     private String playerPhone;

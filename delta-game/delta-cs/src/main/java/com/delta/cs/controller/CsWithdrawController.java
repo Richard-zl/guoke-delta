@@ -46,6 +46,7 @@ public class CsWithdrawController {
                 Player player = playerService.getById(w.getPlayerId());
                 if (player != null) {
                     w.setPlayerName(player.getNickname());
+                    w.setPlayerRealName(player.getRealName());
                     w.setPlayerPhone(player.getPhone());
                 }
             }

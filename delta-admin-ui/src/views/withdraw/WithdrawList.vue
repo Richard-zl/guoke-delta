@@ -8,7 +8,10 @@
             <el-option label="待审核" value="PENDING" /><el-option label="已打款" value="COMPLETED" /><el-option label="已拒绝" value="REJECTED" />
           </el-select>
         </el-form-item>
-        <el-form-item><el-button type="primary" @click="fetchData">查询</el-button></el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="fetchData">查询</el-button>
+          <el-button :loading="exporting" @click="handleExport">导出表格</el-button>
+        </el-form-item>
       </el-form>
       <el-table :data="list" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
@@ -105,9 +108,11 @@ import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
 import ImageUpload from '@/components/ImageUpload.vue'
+import { exportCsv, fetchAllRecords } from '@/utils/exportTable'
 const userStore = useUserStore()
 const isAdmin = userStore.role === 'admin'
 const loading = ref(false), list = ref([]), total = ref(0)
+const exporting = ref(false)
 const query = reactive({ pageNum: 1, pageSize: 10, status: '' })
 async function fetchData() {
   loading.value = true
@@ -116,6 +121,28 @@ async function fetchData() {
     const res = await fn(query)
     list.value = res.data.records; total.value = Number(res.data.total)
   } finally { loading.value = false }
+}
+
+/** 导出提现申请：打手ID、姓名、提现金额 */
+async function handleExport() {
+  exporting.value = true
+  try {
+    const fn = isAdmin ? adminWithdrawList : csWithdrawList
+    const { records, truncated } = await fetchAllRecords(fn, { status: query.status })
+    if (!records.length) {
+      ElMessage.warning('没有可导出的提现申请')
+      return
+    }
+    exportCsv('提现申请', ['打手id', '姓名', '提现金额'], records.map((row) => [
+      row.playerId ?? '',
+      row.playerRealName || row.playerName || '-',
+      row.amount ?? '',
+    ]))
+    if (truncated) ElMessage.warning('导出已截断为前 10000 条，请缩小筛选范围')
+    else ElMessage.success(`已导出 ${records.length} 条`)
+  } finally {
+    exporting.value = false
+  }
 }
 // 同意打款
 const approveVisible = ref(false), approveId = ref(null), approveSubmitting = ref(false), approveRow = ref(null)
