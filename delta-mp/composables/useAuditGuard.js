@@ -11,6 +11,8 @@ export const AUDIT_BLOCKED_ROUTES = [
   '/pages/chat/list',
   '/pages/chat/room',
   '/pages/review/create',
+  '/pages/showcase/list',
+  '/pages/showcase/detail',
   '/pages/wallet/index',
   '/pages/mine/coupon-list',
   '/pages-player/',

@@ -5,6 +5,7 @@ import com.delta.common.domain.R;
 import com.delta.common.security.utils.SecurityUtils;
 import com.delta.order.entity.Order;
 import com.delta.order.entity.OrderPlayer;
+import com.delta.order.service.OrderDisplayEnricher;
 import com.delta.order.service.OrderPlayerService;
 import com.delta.order.service.OrderService;
 import com.delta.order.service.RefundRequestService;
@@ -37,6 +38,7 @@ public class PlayerHomeController {
     private final PlayerWalletService playerWalletService;
     private final TransactionService transactionService;
     private final OrderPlayerService orderPlayerService;
+    private final OrderDisplayEnricher orderDisplayEnricher;
     private final CrossModuleMapper crossModuleMapper;
 
     @GetMapping
@@ -51,8 +53,9 @@ public class PlayerHomeController {
         // 2. 今日统计（今日完成单数 & 今日收入）
         LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
         LocalDateTime todayEnd = LocalDateTime.of(LocalDate.now(), LocalTime.MAX);
-        long todayCompleted = orderService.count(new LambdaQueryWrapper<Order>()
-                .eq(Order::getPlayerId, playerId)
+        // 含辅助打手参与的订单
+        long todayCompleted = orderService.count(orderDisplayEnricher
+                .applyPlayerOwnedScope(new LambdaQueryWrapper<>(), playerId)
                 .in(Order::getStatus, "CONFIRMED", "REVIEWED")
                 .between(Order::getCompleteTime, todayStart, todayEnd));
         result.put("todayCompleted", todayCompleted);
@@ -79,8 +82,8 @@ public class PlayerHomeController {
         long pendingAccept = orderService.count(new LambdaQueryWrapper<Order>()
                 .eq(Order::getPlayerId, playerId)
                 .eq(Order::getStatus, "ASSIGNED"));
-        long inProgress = orderService.count(new LambdaQueryWrapper<Order>()
-                .eq(Order::getPlayerId, playerId)
+        long inProgress = orderService.count(orderDisplayEnricher
+                .applyPlayerOwnedScope(new LambdaQueryWrapper<>(), playerId)
                 .eq(Order::getStatus, "IN_PROGRESS"));
         result.put("pendingAccept", pendingAccept);
         result.put("inProgress", inProgress);

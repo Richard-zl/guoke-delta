@@ -51,6 +51,7 @@ public class SecurityConfig {
                 // 以上 product 接口供匿名访问（含首页热门推荐、热门分类 Tab）
                 .requestMatchers("/app/product/**").permitAll()
                 .requestMatchers("/order/review/product/**", "/order/review/player/**").permitAll()
+                .requestMatchers("/player/showcase/active", "/player/showcase/detail/**").permitAll()
                 .requestMatchers("/system/banner/active", "/system/notice/active", "/system/content/key/**", "/system/config/site").permitAll()
                 .requestMatchers("/doc.html", "/webjars/**", "/v3/api-docs/**", "/swagger-resources/**").permitAll()
                 // 下单选打手：普通用户、打手、客服、管理员均可访问（复用客服指派打手接口）

@@ -6,13 +6,13 @@ import com.delta.common.annotation.OpLog;
 import com.delta.common.domain.PageQuery;
 import com.delta.common.domain.R;
 import com.delta.common.event.BusinessEvent;
-import com.delta.order.entity.Order;
-import com.delta.order.service.OrderService;
+import com.delta.common.mapper.CrossModuleMapper;
 import com.delta.pay.entity.Transaction;
 import com.delta.pay.service.TransactionService;
 import com.delta.player.entity.Player;
 import com.delta.player.entity.PlayerWallet;
 import com.delta.player.service.PlayerService;
+import com.delta.player.service.PlayerShowcaseService;
 import com.delta.player.service.PlayerWalletService;
 import com.delta.player.service.PlayerWorkStatusService;
 import lombok.RequiredArgsConstructor;
@@ -20,17 +20,22 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @RestController
 @RequestMapping("/admin/player")
 @RequiredArgsConstructor
 public class AdminPlayerController {
     private final PlayerService playerService;
+    private final PlayerShowcaseService playerShowcaseService;
     private final PlayerWalletService playerWalletService;
     private final PlayerWorkStatusService playerWorkStatusService;
-    private final OrderService orderService;
     private final TransactionService transactionService;
+    private final CrossModuleMapper crossModuleMapper;
     private final ApplicationEventPublisher eventPublisher;
+
+    /** 计入「完成订单数」的订单状态 */
+    private static final List<String> COMPLETED_STATUSES = List.of("CONFIRMED", "REVIEWED", "SETTLED");
 
     @GetMapping("/list")
     public R<Page<Player>> list(PageQuery query,
@@ -46,10 +51,7 @@ public class AdminPlayerController {
         for (Player p : page.getRecords()) {
             PlayerWallet wallet = playerWalletService.getByPlayerId(p.getId());
             p.setBalance(wallet != null ? wallet.getBalance() : BigDecimal.ZERO);
-            long completed = orderService.count(new LambdaQueryWrapper<Order>()
-                    .eq(Order::getPlayerId, p.getId())
-                    .in(Order::getStatus, "CONFIRMED", "REVIEWED", "SETTLED"));
-            p.setCompletedOrders((int) completed);
+            p.setCompletedOrders(crossModuleMapper.countPlayerParticipatedOrders(p.getId(), COMPLETED_STATUSES));
         }
         return R.ok(page);
     }
@@ -60,10 +62,7 @@ public class AdminPlayerController {
         if (p != null) {
             PlayerWallet wallet = playerWalletService.getByPlayerId(id);
             p.setBalance(wallet != null ? wallet.getBalance() : BigDecimal.ZERO);
-            long completed = orderService.count(new LambdaQueryWrapper<Order>()
-                    .eq(Order::getPlayerId, id)
-                    .in(Order::getStatus, "CONFIRMED", "REVIEWED", "SETTLED"));
-            p.setCompletedOrders((int) completed);
+            p.setCompletedOrders(crossModuleMapper.countPlayerParticipatedOrders(id, COMPLETED_STATUSES));
             playerWorkStatusService.enrichOne(p);
         }
         return R.ok(p);
@@ -98,6 +97,7 @@ public class AdminPlayerController {
         p.setStatus("REJECTED");
         p.setRejectReason(reason);
         playerService.updateById(p);
+        playerShowcaseService.unpublishByPlayerId(id);
         eventPublisher.publishEvent(new BusinessEvent(this, "PLAYER_REJECTED",
                 "PLAYER", id, null, "入驻申请被驳回：" + reason));
         return R.ok();
@@ -111,6 +111,7 @@ public class AdminPlayerController {
         p.setStatus("FROZEN");
         p.setFrozenUntil(body.getFrozenUntil());
         playerService.updateById(p);
+        playerShowcaseService.unpublishByPlayerId(id);
         eventPublisher.publishEvent(new BusinessEvent(this, "PLAYER_FROZEN",
                 "PLAYER", id, null, "您的账号已被冻结，冻结期间无法接单和提现"));
         return R.ok();
@@ -135,6 +136,9 @@ public class AdminPlayerController {
         p.setId(id);
         p.setStatus(status);
         playerService.updateById(p);
+        if (!"ACTIVE".equals(status)) {
+            playerShowcaseService.unpublishByPlayerId(id);
+        }
         return R.ok();
     }
 

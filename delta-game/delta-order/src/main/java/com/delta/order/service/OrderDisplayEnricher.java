@@ -73,6 +73,19 @@ public class OrderDisplayEnricher {
      * 打手「我的订单」：主接 OR 辅助（order.player_id2）OR order_player 已接受队友
      */
     public LambdaQueryWrapper<Order> buildPlayerOwnedWrapper(Long playerId, String status) {
+        LambdaQueryWrapper<Order> wrapper = applyPlayerOwnedScope(new LambdaQueryWrapper<>(), playerId);
+        if (status != null && !status.isEmpty()) {
+            wrapper.eq(Order::getStatus, status);
+        }
+        wrapper.orderByDesc(Order::getCreatedAt);
+        return wrapper;
+    }
+
+    /**
+     * 给任意 wrapper 追加「该打手参与」的范围条件（主接 / 辅助 / 已接受队友）。
+     * 不含排序，可安全用于 count 统计。
+     */
+    public LambdaQueryWrapper<Order> applyPlayerOwnedScope(LambdaQueryWrapper<Order> wrapper, Long playerId) {
         List<Long> teammateOrderIds = orderPlayerService.list(
                 new LambdaQueryWrapper<OrderPlayer>()
                         .eq(OrderPlayer::getPlayerId, playerId)
@@ -84,7 +97,6 @@ public class OrderDisplayEnricher {
                 .distinct()
                 .toList();
 
-        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.and(w -> {
             w.eq(Order::getPlayerId, playerId)
                     .or()
@@ -93,10 +105,6 @@ public class OrderDisplayEnricher {
                 w.or().in(Order::getId, teammateOrderIds);
             }
         });
-        if (status != null && !status.isEmpty()) {
-            wrapper.eq(Order::getStatus, status);
-        }
-        wrapper.orderByDesc(Order::getCreatedAt);
         return wrapper;
     }
 

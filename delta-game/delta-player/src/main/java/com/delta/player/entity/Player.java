@@ -32,8 +32,17 @@ public class Player extends BaseEntity {
     private LocalDateTime frozenUntil;
     private LocalDateTime lastOnlineAt;
     private Integer isOnline;
+    /** 语音介绍 URL */
+    private String introVoiceUrl;
+    /** 语音秒数 */
+    private Integer introVoiceSeconds;
+    /** 高光图库，逗号分隔，最多 9 张 */
+    private String highlightImages;
     @TableLogic
     private Integer deleted;
+    /** 是否已上墙（非 DB） */
+    @TableField(exist = false)
+    private Boolean onWall;
 
     /** 余额（非DB字段） */
     @TableField(exist = false)

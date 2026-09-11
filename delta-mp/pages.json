@@ -115,6 +115,14 @@
         "backgroundColorTop": "#f1f5f9",
         "backgroundColorBottom": "#f1f5f9"
       }
+    },
+    {
+      "path": "pages/showcase/list",
+      "style": { "navigationBarTitleText": "打手风采", "navigationBarTextStyle": "black", "enablePullDownRefresh": true, "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+    },
+    {
+      "path": "pages/showcase/detail",
+      "style": { "navigationBarTitleText": "打手详情", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
     }
   ],
   "subPackages": [
@@ -188,6 +196,10 @@
         {
           "path": "review/list",
           "style": { "navigationBarTitleText": "我的评价", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "showcase/index",
+          "style": { "navigationBarTitleText": "风采资料", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
         },
         {
           "path": "mine/index",

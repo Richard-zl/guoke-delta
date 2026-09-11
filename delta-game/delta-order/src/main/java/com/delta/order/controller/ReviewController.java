@@ -124,9 +124,29 @@ public class ReviewController {
     }
 
     @GetMapping("/player/{playerId}")
-    public R<Page<Review>> byPlayer(@PathVariable Long playerId, PageQuery query) {
-        return R.ok(reviewService.page(new Page<>(query.getPageNum(), query.getPageSize()),
-                new LambdaQueryWrapper<Review>().eq(Review::getPlayerId, playerId)
-                        .orderByDesc(Review::getCreatedAt)));
+    public R<Page<Review>> byPlayer(@PathVariable Long playerId, PageQuery query,
+                                    @RequestParam(value = "forShowcase", required = false) Boolean forShowcase) {
+        LambdaQueryWrapper<Review> wrapper = new LambdaQueryWrapper<Review>()
+                .eq(Review::getPlayerId, playerId)
+                .orderByDesc(Review::getCreatedAt);
+        if (Boolean.TRUE.equals(forShowcase)) {
+            wrapper.and(w -> w.eq(Review::getHideInShowcase, 0).or().isNull(Review::getHideInShowcase));
+        }
+        Page<Review> page = reviewService.page(new Page<>(query.getPageNum(), query.getPageSize()), wrapper);
+        fillUserNicknames(page.getRecords());
+        return R.ok(page);
+    }
+
+    private void fillUserNicknames(List<Review> reviews) {
+        if (reviews == null || reviews.isEmpty()) {
+            return;
+        }
+        for (Review review : reviews) {
+            if (review.getUserId() == null) {
+                continue;
+            }
+            String nick = crossModuleMapper.selectUserNickname(review.getUserId());
+            review.setUserNickname((nick != null && !nick.isBlank()) ? nick : "匿名老板");
+        }
     }
 }

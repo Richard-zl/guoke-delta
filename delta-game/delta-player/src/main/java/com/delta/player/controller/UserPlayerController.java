@@ -10,6 +10,7 @@ import com.delta.order.entity.Order;
 import com.delta.order.service.OrderService;
 import com.delta.player.entity.Player;
 import com.delta.player.service.PlayerService;
+import com.delta.player.service.PlayerShowcaseService;
 import com.delta.player.service.PlayerWorkStatusService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +27,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class UserPlayerController {
     private final PlayerService playerService;
+    private final PlayerShowcaseService playerShowcaseService;
     private final OrderService orderService;
     private final CrossModuleMapper crossModuleMapper;
     private final PlayerWorkStatusService playerWorkStatusService;
@@ -42,6 +44,7 @@ public class UserPlayerController {
             p.setCompletedOrders(crossModuleMapper.selectPlayerCompletedOrders(p.getId()));
         }
         playerWorkStatusService.enrichBatch(page.getRecords());
+        playerShowcaseService.fillOnWall(page.getRecords());
         int maxConcurrent = playerWorkStatusService.getMaxConcurrent();
         Map<String, Object> result = new HashMap<>();
         result.put("players", page);

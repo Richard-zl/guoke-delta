@@ -108,12 +108,20 @@ const routes = [
   {
     path: '/player',
     component: Layout,
+    redirect: '/player/list',
+    meta: { title: '打手管理', icon: 'Avatar', roles: ['admin', 'cs'] },
     children: [
       {
-        path: '',
+        path: 'list',
         name: 'PlayerList',
         component: () => import('@/views/player/PlayerList.vue'),
-        meta: { title: '打手管理', icon: 'Avatar', roles: ['admin', 'cs'] }
+        meta: { title: '打手列表', roles: ['admin', 'cs'] }
+      },
+      {
+        path: 'showcase',
+        name: 'PlayerShowcase',
+        component: () => import('@/views/player/PlayerShowcase.vue'),
+        meta: { title: '打手风采', roles: ['admin'] }
       }
     ]
   },

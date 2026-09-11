@@ -602,6 +602,9 @@ CREATE TABLE `player` (
   `deposit_payment_no` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '打手入驻押金支付单号(100元)',
   `last_online_at` datetime DEFAULT NULL COMMENT '最后在线时间',
   `is_online` tinyint NOT NULL DEFAULT '0' COMMENT '是否在线: 0-离线 1-在线',
+  `intro_voice_url` varchar(512) NOT NULL DEFAULT '' COMMENT '语音介绍URL',
+  `intro_voice_seconds` int NOT NULL DEFAULT '0' COMMENT '语音秒数',
+  `highlight_images` varchar(4096) NOT NULL DEFAULT '' COMMENT '高光图库URL逗号分隔最多9张',
   `deleted` tinyint NOT NULL DEFAULT '0' COMMENT '逻辑删除',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -618,6 +621,42 @@ CREATE TABLE `player` (
 LOCK TABLES `player` WRITE;
 /*!40000 ALTER TABLE `player` DISABLE KEYS */;
 /*!40000 ALTER TABLE `player` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `player_showcase`
+--
+
+DROP TABLE IF EXISTS `player_showcase`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `player_showcase` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `player_id` bigint NOT NULL COMMENT '绑定打手',
+  `cover_url` varchar(512) NOT NULL DEFAULT '' COMMENT '运营封面，空则用头像',
+  `tagline` varchar(32) NOT NULL DEFAULT '' COMMENT '一句话标签',
+  `bio` varchar(512) NOT NULL DEFAULT '' COMMENT '运营简介',
+  `display_rating` decimal(3,2) DEFAULT NULL COMMENT '风采展示评分，空则使用真实值',
+  `display_completed_orders` int DEFAULT NULL COMMENT '风采展示完成单，空则使用真实值',
+  `display_complete_rate` decimal(5,2) DEFAULT NULL COMMENT '风采展示完成率，空则使用真实值',
+  `selected_images` varchar(4096) NOT NULL DEFAULT '' COMMENT '运营勾选的高光URL逗号分隔',
+  `sort_order` int NOT NULL DEFAULT '0' COMMENT '越小越靠前',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '0下架 1上架',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_player_id` (`player_id`),
+  KEY `idx_status_sort` (`status`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='打手风采上墙卡';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `player_showcase`
+--
+
+LOCK TABLES `player_showcase` WRITE;
+/*!40000 ALTER TABLE `player_showcase` DISABLE KEYS */;
+/*!40000 ALTER TABLE `player_showcase` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -893,6 +932,7 @@ CREATE TABLE `review` (
   `rating` tinyint NOT NULL COMMENT '星级评分(1-5)',
   `content` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '评价文字(最多200字)',
   `images` varchar(4096) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '评价图片URL，多个以逗号分隔',
+  `hide_in_showcase` tinyint NOT NULL DEFAULT '0' COMMENT '1=风采详情隐藏',
   `deleted` tinyint NOT NULL DEFAULT '0' COMMENT '逻辑删除(管理员可删违规评价)',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`) USING BTREE,

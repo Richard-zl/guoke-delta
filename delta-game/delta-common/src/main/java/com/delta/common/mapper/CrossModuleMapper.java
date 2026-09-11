@@ -121,7 +121,17 @@ public interface CrossModuleMapper {
         };
     }
 
-    @Select("SELECT COUNT(*) FROM `order` WHERE player_id = #{playerId} AND status IN ('COMPLETED','CONFIRMED','REVIEWED')")
+    /**
+     * 打手参与订单的判定条件：主接 OR 辅助(player_id2) OR order_player 中已接受的队友。
+     * 与 OrderDisplayEnricher.buildPlayerOwnedWrapper 口径保持一致。
+     */
+    String PLAYER_PARTICIPATED_CONDITION =
+            " AND (o.player_id = #{playerId} OR o.player_id2 = #{playerId}" +
+            " OR EXISTS (SELECT 1 FROM order_player op WHERE op.order_id = o.id" +
+            " AND op.player_id = #{playerId} AND op.role = 'TEAMMATE' AND op.status = 'ACCEPTED'))";
+
+    @Select("SELECT COUNT(DISTINCT o.id) FROM `order` o WHERE o.status IN ('COMPLETED','CONFIRMED','REVIEWED')"
+            + PLAYER_PARTICIPATED_CONDITION)
     int selectPlayerCompletedOrders(@Param("playerId") Long playerId);
 
     /** 统计打手占用订单，包含主打手、辅助打手和已接受队友，同一订单只计一次。 */
@@ -216,6 +226,13 @@ public interface CrossModuleMapper {
             """)
     List<PlayerActiveOrderStats> batchSelectPlayerActiveOrderStats(
             @Param("playerIds") List<Long> playerIds);
+
+    /** 按指定状态集统计打手参与的订单数（含辅助打手） */
+    @Select("<script>SELECT COUNT(DISTINCT o.id) FROM `order` o WHERE o.status IN "
+            + "<foreach item='st' collection='statuses' open='(' separator=',' close=')'>#{st}</foreach>"
+            + PLAYER_PARTICIPATED_CONDITION + "</script>")
+    int countPlayerParticipatedOrders(@Param("playerId") Long playerId,
+                                      @Param("statuses") List<String> statuses);
 
     /** 同 openid 下由用户 id 查打手 id（打手端与用户端同一 token，会话列表需按打手 id 匹配） */
     @Select("SELECT p.id FROM player p INNER JOIN user u ON u.openid = p.openid WHERE u.id = #{userId} LIMIT 1")

@@ -16,11 +16,11 @@
         <template v-for="route in menuRoutes" :key="route.path">
           <!-- 单级菜单 -->
           <el-menu-item
-            v-if="route.children?.length === 1 && !route.children[0].children"
-            :index="resolveMenuPath(route.path, route.children[0].path)"
+            v-if="visibleChildren(route.children).length === 1 && !visibleChildren(route.children)[0].children"
+            :index="resolveMenuPath(route.path, visibleChildren(route.children)[0].path)"
           >
-            <el-icon><component :is="route.children[0].meta?.icon || route.meta?.icon" /></el-icon>
-            <template #title>{{ route.children[0].meta?.title }}</template>
+            <el-icon><component :is="visibleChildren(route.children)[0].meta?.icon || route.meta?.icon" /></el-icon>
+            <template #title>{{ visibleChildren(route.children)[0].meta?.title }}</template>
           </el-menu-item>
           <!-- 多级菜单 -->
           <el-sub-menu v-else :index="route.path">
@@ -135,7 +135,11 @@ const menuRoutes = computed(() => {
 })
 
 function visibleChildren(children) {
-  return (children || []).filter((c) => !c.meta?.hidden)
+  return (children || []).filter((c) => {
+    if (c.meta?.hidden) return false
+    const roles = c.meta?.roles
+    return !roles || roles.includes(role.value)
+  })
 }
 
 const profileDialogVisible = ref(false)

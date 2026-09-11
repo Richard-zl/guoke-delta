@@ -6,6 +6,7 @@ import com.delta.common.domain.PageQuery;
 import com.delta.common.domain.R;
 import com.delta.common.security.utils.SecurityUtils;
 import com.delta.order.entity.Order;
+import com.delta.order.service.OrderDisplayEnricher;
 import com.delta.order.service.OrderService;
 import com.delta.pay.entity.Transaction;
 import com.delta.pay.service.TransactionService;
@@ -33,6 +34,7 @@ public class PlayerEarningsController {
     private final TransactionService transactionService;
     private final PlayerWalletService playerWalletService;
     private final OrderService orderService;
+    private final OrderDisplayEnricher orderDisplayEnricher;
     private final SysConfigService sysConfigService;
 
     /** 收益汇总 */
@@ -89,16 +91,16 @@ public class PlayerEarningsController {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         data.put("monthIncome", monthIncome);
 
-        // --- 订单统计 ---
+        // --- 订单统计（含辅助打手参与的订单）---
         // 累计订单（已完成/已确认/已评价）
-        long totalOrders = orderService.count(new LambdaQueryWrapper<Order>()
-                .eq(Order::getPlayerId, playerId)
+        long totalOrders = orderService.count(orderDisplayEnricher
+                .applyPlayerOwnedScope(new LambdaQueryWrapper<>(), playerId)
                 .in(Order::getStatus, "COMPLETED", "CONFIRMED", "REVIEWED"));
         data.put("totalOrders", totalOrders);
 
         // 本月订单
-        long monthOrders = orderService.count(new LambdaQueryWrapper<Order>()
-                .eq(Order::getPlayerId, playerId)
+        long monthOrders = orderService.count(orderDisplayEnricher
+                .applyPlayerOwnedScope(new LambdaQueryWrapper<>(), playerId)
                 .in(Order::getStatus, "COMPLETED", "CONFIRMED", "REVIEWED")
                 .ge(Order::getCreatedAt, monthStart));
         data.put("monthOrders", monthOrders);
@@ -111,8 +113,8 @@ public class PlayerEarningsController {
         data.put("avgOrderAmount", avgOrderAmount);
 
         // 完成率 = 已完成订单 / 全部接过的订单（排除CANCELLED之外的所有）
-        long allOrders = orderService.count(new LambdaQueryWrapper<Order>()
-                .eq(Order::getPlayerId, playerId)
+        long allOrders = orderService.count(orderDisplayEnricher
+                .applyPlayerOwnedScope(new LambdaQueryWrapper<>(), playerId)
                 .ne(Order::getStatus, "CANCELLED"));
         String completionRate = allOrders > 0
                 ? String.valueOf(totalOrders * 100 / allOrders)

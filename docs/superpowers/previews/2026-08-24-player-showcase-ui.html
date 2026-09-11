@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>打手风采 · UI 预览</title>
+<style>
+  :root {
+    --red: #ff4544;
+    --red-dark: #e03534;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --bg: #f1f5f9;
+    --ok: #16a34a;
+    --full: #ea580c;
+    --off: #94a3b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+    background: #0b1220;
+    color: var(--ink);
+    min-height: 100vh;
+  }
+  .stage { max-width: 1280px; margin: 0 auto; padding: 28px 24px 60px; }
+  .hero-bar {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 16px; margin-bottom: 22px; color: #e2e8f0;
+  }
+  .hero-bar h1 { font-size: 22px; letter-spacing: .02em; }
+  .hero-bar p { color: #94a3b8; font-size: 13px; margin-top: 6px; line-height: 1.5; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tabs button {
+    border: 0; background: #1e293b; color: #cbd5e1; padding: 8px 14px;
+    border-radius: 999px; cursor: pointer; font-size: 13px;
+  }
+  .tabs button.on { background: var(--red); color: #fff; }
+  .board { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+  .phone {
+    width: 390px; height: 780px; background: #111827; border-radius: 36px;
+    padding: 12px; box-shadow: 0 30px 80px rgba(0,0,0,.45);
+    flex-shrink: 0;
+  }
+  .screen {
+    height: 100%; background: #fff4e8; border-radius: 26px; overflow: hidden;
+    display: none; flex-direction: column; position: relative;
+  }
+  .screen.show { display: flex; }
+  .status { height: 28px; display: flex; justify-content: space-between; padding: 8px 18px 0; font-size: 11px; color: #334155; }
+  .nav {
+    height: 46px; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; background: #fff; border-bottom: 1px solid var(--line); position: relative;
+  }
+  .nav .back { position: absolute; left: 14px; color: #334155; font-size: 20px; cursor: pointer; }
+  .scroll { flex: 1; overflow: auto; }
+  .note {
+    flex: 1; min-width: 280px; max-width: 520px; color: #cbd5e1; font-size: 14px; line-height: 1.7;
+  }
+  .note h2 { color: #fff; font-size: 16px; margin-bottom: 8px; }
+  .note ul { padding-left: 18px; margin: 8px 0 16px; }
+  .note .warn { color: #fbbf24; }
+  .banner { height: 132px; margin: 10px 12px 0; border-radius: 14px;
+    background: linear-gradient(135deg, #1e293b, #334155); color: #fff; display: flex; align-items: flex-end; padding: 14px; font-weight: 700; }
+  .cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 14px 12px; }
+  .cat { text-align: center; font-size: 11px; color: #475569; }
+  .cat i { display: block; width: 44px; height: 44px; margin: 0 auto 6px; border-radius: 14px; background: #fff; }
+  .sec { padding: 4px 12px 16px; }
+  .sec-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .sec-h b { color: var(--red); font-size: 16px; }
+  .sec-h span { color: var(--muted); font-size: 12px; cursor: pointer; }
+  .hscroll { display: flex; gap: 10px; overflow: auto; padding-bottom: 6px; }
+  .scard {
+    width: 118px; flex-shrink: 0; background: #fff; cursor: pointer; position: relative;
+    border: 3px solid #111827; border-radius: 22px 6px 18px 8px;
+    box-shadow: 4px 4px 0 #111827;
+  }
+  .scard .cover { height: 92px; display: block; clip-path: polygon(0 0, 100% 0, 100% 86%, 0 100%); }
+  .scard .c1 { background: linear-gradient(160deg, #7c3aed, #1e1b4b); }
+  .scard .c2 { background: linear-gradient(160deg, #334155, #0f172a); }
+  .scard .c3 { background: linear-gradient(160deg, #ff4544, #7c2d12); }
+  .scard .name { display: block; padding: 6px 8px 0; font-size: 13px; font-weight: 800; }
+  .scard .tag {
+    display: inline-block; margin: 4px 6px 8px; padding: 2px 6px;
+    font-size: 10px; font-weight: 800; background: #ffd60a; border: 2px solid #111827;
+    transform: skewX(-10deg); max-width: 96px; overflow: hidden; white-space: nowrap;
+  }
+  .dot {
+    position: absolute; top: 8px; right: -4px; font-size: 10px; font-weight: 800;
+    padding: 2px 6px; border: 2px solid #111827; transform: rotate(8deg);
+    width: auto; height: auto; border-radius: 0;
+  }
+  .dot.on { background: #b8f000; } .dot.full { background: #ffd60a; } .dot.off { background: #e2e8f0; }
+  .prods { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .prod { background: #fff; border-radius: 12px; height: 118px; padding: 10px; font-size: 12px; }
+  .prod .ph { height: 64px; border-radius: 8px; background: #e2e8f0; margin-bottom: 8px; }
+  .tabbar { height: 56px; background: #fff; border-top: 1px solid var(--line); display: flex; }
+  .tabbar div { flex: 1; text-align: center; font-size: 10px; color: #94a3b8; padding-top: 10px; }
+  .tabbar .cur { color: var(--red); font-weight: 700; }
+
+  .row {
+    display: flex; align-items: stretch; background: #fff; margin: 10px 12px;
+    border: 3px solid #111827; border-radius: 14px 4px 18px 6px;
+    box-shadow: 4px 4px 0 #111827; overflow: hidden; cursor: pointer;
+  }
+  .row .cover { width: 84px; height: 88px; flex-shrink: 0; clip-path: polygon(0 0, 100% 0, 86% 100%, 0 100%); }
+  .row > div:last-child { padding: 8px 10px; }
+  .badge { font-size: 10px; font-weight: 800; padding: 2px 6px; border: 2px solid #111827; color: #111827; }
+  .badge.on { background: #b8f000; }
+  .badge.off { background: #e2e8f0; }
+  .badge.full { background: #ffd60a; }
+  .meta { font-size: 11px; color: #111827; margin-top: 4px; font-weight: 700; }
+  .tagline {
+    display: inline-block; font-size: 11px; font-weight: 800; color: #111827; margin-top: 4px;
+    background: #ffd60a; border: 2px solid #111827; padding: 1px 6px; transform: skewX(-8deg);
+  }
+
+  .hero { height: 210px; position: relative; clip-path: polygon(0 0, 100% 0, 100% 78%, 0 100%); }
+  .hero.h1 { background: linear-gradient(160deg, #7c3aed, #1e1b4b); }
+  .hero.h2 { background: linear-gradient(160deg, #64748b, #1e293b); }
+  .float {
+    margin: -36px 12px 0; background: #fff; padding: 14px; position: relative; z-index: 2;
+    border: 3px solid #111827; border-radius: 6px 20px 8px 18px; box-shadow: 5px 5px 0 #111827;
+  }
+  .name { font-size: 20px; font-weight: 900; }
+  .slogan {
+    display: inline-block; color: #fff; font-size: 12px; font-weight: 800; margin-top: 6px;
+    background: #ff4544; border: 2px solid #111827; padding: 3px 8px; transform: rotate(-2deg);
+  }
+  .stats { display: flex; gap: 6px; margin-top: 12px; }
+  .stats div { flex: 1; text-align: center; border: 2px solid #111827; padding: 6px 0; font-weight: 800; }
+  .stats div:nth-child(1) { background: #00d4ff; border-radius: 10px 4px 10px 4px; }
+  .stats div:nth-child(2) { background: #ffd60a; border-radius: 4px 12px 4px 10px; }
+  .stats div:nth-child(3) { background: #fff; border-radius: 10px 6px 4px 8px; }
+  .stats div:nth-child(4) { background: #b8f000; border-radius: 4px 8px 12px 4px; }
+  .stats b { display: block; font-size: 15px; }
+  .stats span { font-size: 10px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .chip { font-size: 11px; font-weight: 800; background: #00d4ff; padding: 3px 8px; border: 2px solid #111827; color: #111827; transform: rotate(-2deg); }
+  .block {
+    margin: 10px 12px; background: #fff; padding: 12px;
+    border: 3px solid #111827; border-radius: 8px 14px 6px 12px; box-shadow: 4px 4px 0 #111827;
+  }
+  .block h3 { font-size: 14px; margin-bottom: 8px; }
+  .voice {
+    height: 40px; line-height: 40px; text-align: center; background: #ffd60a; color: #111827;
+    font-weight: 900; border: 3px solid #111827; box-shadow: 3px 3px 0 #111827;
+    border-radius: 999px 8px; cursor: pointer;
+  }
+  .voice.play { background: #ff4544; color: #fff; }
+  .bio { font-size: 13px; color: #111827; line-height: 1.6; }
+  .gals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .gals i { display: block; height: 72px; border: 2px solid #111827; }
+  .review { padding: 8px 0; border-bottom: 2px solid #111827; font-size: 13px; }
+  .stars { display: flex; gap: 3px; margin-bottom: 4px; }
+  .stars i { width: 10px; height: 10px; background: #ffd60a; border: 1.5px solid #111827; transform: rotate(12deg); display: inline-block; }
+  .bottom {
+    padding: 10px 12px 14px; background: #fff4e8; border-top: 3px solid #111827;
+  }
+  .cta {
+    height: 44px; line-height: 44px; text-align: center; background: #ff4544; color: #fff;
+    font-weight: 900; cursor: pointer; border: 3px solid #111827; box-shadow: 4px 4px 0 #111827;
+    border-radius: 10px 20px;
+  }
+  .cta.off { background: #cbd5e1; color: #64748b; box-shadow: none; }
+  .tip { text-align: center; font-size: 11px; color: var(--full); margin-bottom: 6px; }
+
+  .mask { position: absolute; inset: 0; background: rgba(15,23,42,.45); display: flex; align-items: flex-end; }
+  .sheet { width: 100%; background: #fff; border-radius: 18px 18px 0 0; padding: 10px 12px 16px; max-height: 78%; }
+  .handle { width: 36px; height: 4px; background: #cbd5e1; border-radius: 4px; margin: 4px auto 10px; }
+  .pitem { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+  .av { width: 40px; height: 40px; border-radius: 50%; }
+  .link { color: var(--red); font-size: 11px; margin-left: 6px; cursor: pointer; }
+  .search { display: flex; gap: 8px; margin: 8px 0; }
+  .search input { flex: 1; height: 34px; border: 0; background: #f1f5f9; border-radius: 999px; padding: 0 12px; }
+  .search button { border: 0; background: var(--red); color: #fff; border-radius: 999px; padding: 0 12px; }
+
+  .pcard { background: #fff; margin: 10px 12px; border-radius: 14px; padding: 14px; }
+  .ghost { flex: 1; height: 36px; line-height: 36px; text-align: center; border: 1px solid var(--red); color: var(--red); border-radius: 10px; font-size: 13px; }
+  .btns { display: flex; gap: 8px; margin-top: 10px; }
+  .add { width: 72px; height: 72px; border-radius: 10px; background: #f1f5f9; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+  .desk {
+    width: min(820px, 100%); background: #fff; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,.3);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { background: #f8fafc; color: #64748b; font-weight: 600; }
+  .btn { border: 0; background: var(--red); color: #fff; border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  .linkbtn { border: 0; background: none; color: #2563eb; cursor: pointer; }
+  .form { padding: 16px; display: grid; grid-template-columns: 90px 1fr; gap: 10px 8px; font-size: 13px; }
+  .form input, .form textarea { border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-family: inherit; }
+  .checks { display: flex; gap: 8px; }
+  .checks label { display: flex; flex-direction: column; align-items: center; font-size: 11px; color: #64748b; }
+  .checks i { width: 56px; height: 56px; border-radius: 8px; display: block; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="hero-bar">
+    <div>
+      <h1>打手风采 · 交互稿</h1>
+      <p>Neubrutalism + 色块：粗黑边、错位阴影、斜切封面、旋转色条。<br>点页签看各屏。这版已同步到小程序卡片和详情页。</p>
+    </div>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="board">
+    <div class="phone" id="phone"></div>
+    <div class="note" id="note"></div>
+  </div>
+</div>
+
+<template id="tpl-home">
+  <div class="status"><span>9:41</span><span>5G  ██</span></div>
+  <div class="scroll">
+    <div style="padding:10px 12px 0"><div style="height:32px;background:#fff;border-radius:999px;color:#94a3b8;line-height:32px;padding:0 14px;font-size:13px">搜索</div></div>
+    <div class="banner">三角洲护航 · 今晚开黑</div>
+    <div class="cats">
+      <div class="cat"><i></i>护航</div><div class="cat"><i></i>代练</div>
+      <div class="cat"><i></i>陪玩</div><div class="cat"><i></i>全部</div>
+    </div>
+    <div class="sec">
+      <div class="sec-h"><b>打手风采</b><span onclick="show('list')">更多 ›</span></div>
+      <div class="hscroll">
+        <div class="scard" onclick="show('detail')"><div class="cover c1"></div><span class="dot on">可接</span><b class="name">夜刃</b><span class="tag">稳枪不坑队友</span></div>
+        <div class="scard" onclick="show('detail-off')"><div class="cover c2"></div><span class="dot off">离线</span><b class="name">老K</b><span class="tag">指挥位首选</span></div>
+        <div class="scard"><div class="cover c3"></div><span class="dot full">满载</span><b class="name">阿修</b><span class="tag">满载接单中</span></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-h"><b>热门推荐</b></div>
+      <div class="prods"><div class="prod"><div class="ph"></div>护航 2小时</div><div class="prod"><div class="ph"></div>上分套餐</div></div>
+    </div>
+  </div>
+  <div class="tabbar"><div class="cur">首页</div><div>分类</div><div>订单</div><div>我的</div></div>
+</template>
+
+<template id="tpl-list">
+  <div class="status"><span>9:41</span><span>5G  ██</span></div>
+  <div class="nav"><span class="back" onclick="show('home')">‹</span>打手风采</div>
+  <div class="scroll">
+    <div class="row" onclick="show('detail')">
+      <div class="cover c1" style="background:linear-gradient(160deg,#3b82f6,#1e3a8a)"></div>
+      <div>
+        <div style="display:flex;gap:6px;align-items:center"><b>夜刃</b><span class="badge on">可接</span></div>
+        <div class="tagline">稳枪不坑队友</div>
+        <div class="meta">4.9 分 · 完成 128</div>
+      </div>
+    </div>
+    <div class="row" onclick="show('detail-off')">
+      <div class="cover" style="background:linear-gradient(160deg,#64748b,#1e293b)"></div>
+      <div>
+        <div style="display:flex;gap:6px;align-items:center"><b>老K</b><span class="badge off">离线</span></div>
+        <div class="tagline">指挥位首选</div>
+        <div class="meta">4.8 分 · 完成 96</div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="cover" style="background:linear-gradient(160deg,#f97316,#7c2d12)"></div>
+      <div>
+        <div style="display:flex;gap:6px;align-items:center"><b>阿修</b><span class="badge full">满载</span></div>
+        <div class="tagline">地图熟、沟通快</div>
+        <div class="meta">4.7 分 · 完成 80</div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-detail">
+  <div class="status"><span>9:41</span><span>5G  ██</span></div>
+  <div class="nav"><span class="back" onclick="show('list')">‹</span>打手详情</div>
+  <div class="scroll">
+    <div class="hero h1"></div>
+    <div class="float">
+      <div class="name">夜刃</div>
+      <div class="slogan">稳枪不坑队友</div>
+      <div class="stats">
+        <div><b>4.9</b><span>评分</span></div>
+        <div><b>128</b><span>完成单</span></div>
+        <div><b>98%</b><span>完成率</span></div>
+        <div><b style="color:var(--ok)">在线</b><span>状态</span></div>
+      </div>
+      <div class="chips"><span class="chip">长弓</span><span class="chip">指挥</span><span class="chip">护航</span></div>
+    </div>
+    <div class="block">
+      <h3>语音介绍 · 32秒</h3>
+      <div class="voice" id="voiceBtn" onclick="this.classList.toggle('play'); this.textContent = this.classList.contains('play') ? '播放中… 再点暂停' : '播放语音'">播放语音</div>
+    </div>
+    <div class="block">
+      <h3>简介</h3>
+      <div class="bio">三年护航，不抢人头。开麦指挥，掉线必补时。只接晚上 8 点后。</div>
+    </div>
+    <div class="block">
+      <h3>高光图</h3>
+      <div class="gals"><i style="background:#93c5fd"></i><i style="background:#60a5fa"></i><i style="background:#3b82f6"></i></div>
+    </div>
+    <div class="block">
+      <h3>老板评价</h3>
+      <div class="review"><div class="stars"><i></i><i></i><i></i><i></i><i></i></div>枪稳，沟通清楚，下次还找他。</div>
+      <div class="review"><div class="stars"><i></i><i></i><i></i><i></i></div>准时上号，团战指挥可以。</div>
+    </div>
+    <div style="height:12px"></div>
+  </div>
+  <div class="bottom"><div class="cta" onclick="show('picker')">指定 TA 下单</div></div>
+</template>
+
+<template id="tpl-detail-off">
+  <div class="status"><span>9:41</span><span>5G  ██</span></div>
+  <div class="nav"><span class="back" onclick="show('list')">‹</span>打手详情</div>
+  <div class="scroll">
+    <div class="hero h2"></div>
+    <div class="float">
+      <div class="name">老K</div>
+      <div class="slogan">指挥位首选</div>
+      <div class="stats">
+        <div><b>4.8</b><span>评分</span></div>
+        <div><b>96</b><span>完成单</span></div>
+        <div><b>97%</b><span>完成率</span></div>
+        <div><b style="color:var(--off)">离线</b><span>状态</span></div>
+      </div>
+      <div class="chips"><span class="chip">指挥</span><span class="chip">麦霸友好</span></div>
+    </div>
+    <div class="block"><h3>语音介绍 · 28秒</h3><div class="voice">播放语音</div></div>
+    <div class="block"><h3>简介</h3><div class="bio">离线仍展示，只是不能指定。排序位置不变。</div></div>
+  </div>
+  <div class="bottom">
+    <div class="tip">当前离线，无法指定</div>
+    <div class="cta off">指定 TA 下单</div>
+  </div>
+</template>
+
+<template id="tpl-picker">
+  <div class="status"><span>9:41</span><span>5G  ██</span></div>
+  <div class="nav"><span class="back" onclick="show('home')">‹</span>确认订单</div>
+  <div class="scroll" style="background:var(--bg)">
+    <div class="block"><h3>商品信息</h3><div class="bio">护航 2小时 · ¥128</div></div>
+    <div class="block">
+      <h3>指定接单员（选填）</h3>
+      <div class="bio">已预选：夜刃</div>
+    </div>
+  </div>
+  <div class="mask">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div style="display:flex;justify-content:space-between;font-weight:700">选择接单员 <span onclick="show('detail')" style="font-weight:400;color:#94a3b8">✕</span></div>
+      <div class="meta" style="margin:6px 0">接单员最多同时接 <b style="color:var(--red)">1</b> 个订单</div>
+      <div class="search"><input placeholder="搜索昵称/手机号" /><button>搜索</button></div>
+      <div class="pitem">
+        <div class="av" style="background:linear-gradient(160deg,#3b82f6,#1e3a8a)"></div>
+        <div style="flex:1">
+          <div>夜刃 <span class="badge on">在线</span><span class="link" onclick="show('detail')">查看风采</span></div>
+          <div class="meta">⭐4.9 · 完成 128 · 进行中 0/1</div>
+        </div>
+        <b style="color:var(--red)">✓</b>
+      </div>
+      <div class="pitem" style="opacity:.7">
+        <div class="av" style="background:#94a3b8"></div>
+        <div style="flex:1">
+          <div>老K <span class="badge off">离线</span><span class="link" onclick="show('detail-off')">查看风采</span></div>
+          <div class="meta">⭐4.8 · 完成 96</div>
+        </div>
+      </div>
+      <div class="pitem">
+        <div class="av" style="background:#cbd5e1"></div>
+        <div style="flex:1">
+          <div>小周 <span class="badge on">在线</span></div>
+          <div class="meta">未上墙，无「查看风采」</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <div class="ghost">取消</div>
+        <div class="cta" style="flex:1">确定</div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-player">
+  <div class="status"><span>9:41</span><span>5G  ██</span></div>
+  <div class="nav"><span class="back" onclick="show('home')">‹</span>风采资料</div>
+  <div class="scroll">
+    <div class="pcard">
+      <b>上墙状态</b>
+      <div style="color:var(--ok);margin-top:6px">已上墙</div>
+      <div class="meta">封面、简介、排序由运营配置。重录语音不会下架。</div>
+    </div>
+    <div class="pcard">
+      <b>语音介绍（15–60秒）</b>
+      <div class="meta">当前 32 秒</div>
+      <div class="btns"><div class="ghost">试听</div><div class="ghost">重录</div></div>
+    </div>
+    <div class="pcard">
+      <b>高光图库（最多9张）</b>
+      <div class="gals" style="margin-top:8px">
+        <i style="background:#93c5fd"></i><i style="background:#60a5fa"></i>
+        <div class="add">+</div>
+      </div>
+      <div class="meta">长按删除。对外展示由运营勾选。</div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-admin">
+  <div class="desk">
+    <div style="display:flex;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)">
+      <b>打手风采</b><button class="btn">新增</button>
+    </div>
+    <table>
+      <thead><tr><th>打手</th><th>上架</th><th>排序</th><th>语音</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr><td>夜刃</td><td style="color:var(--ok)">上架</td><td>1</td><td>有</td><td><button class="linkbtn">编辑</button></td></tr>
+        <tr><td>老K</td><td>下架</td><td>2</td><td>有</td><td><button class="linkbtn">编辑</button></td></tr>
+      </tbody>
+    </table>
+    <div class="form">
+      <span>打手</span><input value="夜刃（ACTIVE）" disabled />
+      <span>一句话标签</span><input value="稳枪不坑队友" maxlength="8" />
+      <span>简介</span><textarea rows="2">三年护航，不抢人头。</textarea>
+      <span>高光勾选</span>
+      <div class="checks">
+        <label><i style="background:#93c5fd"></i><input type="checkbox" checked /> 图1</label>
+        <label><i style="background:#cbd5e1"></i><input type="checkbox" /> 图2</label>
+      </div>
+      <span>评价隐藏</span><div class="bio">「沟通一般」→ 风采中不展示，评分不变</div>
+    </div>
+  </div>
+</template>
+
+<script>
+const notes = {
+  home: { title: '首页橱窗', html: '<h2>首页橱窗</h2><ul><li>Neubrutalism：粗黑边 + 错位硬阴影。</li><li>封面斜切、状态色条旋转，标签平行四边形。</li><li>可接=荧光绿，离线=灰，满载=黄，文字+颜色双指示。</li></ul>' },
+  list: { title: '风采列表', html: '<h2>风采列表</h2><ul><li>全部已上墙，手动排序。</li><li>离线/满载仍展示，打标。</li></ul>' },
+  detail: { title: '详情 · 可指定', html: '<h2>详情（可接）</h2><ol><li>封面 + 一句话标签</li><li>评分 / 完成单 / 完成率 / 在线状态</li><li>技能标签</li><li>语音必有，可播放</li><li>运营简介</li><li>高光图（未勾选则整块消失）</li><li>评价可翻，隐藏项不出现</li><li>主按钮：指定 TA 下单 → 去选商品，确认订单预勾此人</li></ol>' },
+  'detail-off': { title: '详情 · 离线', html: '<h2>详情（离线）</h2><p>人还在墙上，按钮置灰，文案「当前离线，无法指定」。满载同理，文案换成接单已满。</p>' },
+  picker: { title: '指定弹层', html: '<h2>指定接单员弹层</h2><ul><li>已上墙的人多一个「查看风采」。</li><li>未上墙的人保持原样。</li><li>从风采回来可点「就选 TA」并预勾。</li></ul>' },
+  player: { title: '打手端', html: '<h2>打手 · 风采资料</h2><ul><li>只读：是否上墙。</li><li>录音 15–60 秒，重录不自动下架。</li><li>图库最多 9 张，长按删除。</li><li>不能自己上墙。</li></ul>' },
+  admin: { title: '运营后台', html: '<h2>后台 CMS</h2><ul><li>绑打手、封面、8 字标签、简介、排序、勾选高光、上下架。</li><li>非 ACTIVE 或无语音禁止上架。</li><li>评价可「风采中隐藏」，不改评分。</li><li>客服菜单没有这一项。</li></ul>' }
+};
+const order = ['home','list','detail','detail-off','picker','player','admin'];
+const labels = { home:'首页', list:'列表', detail:'详情·可接', 'detail-off':'详情·离线', picker:'指定弹层', player:'打手端', admin:'后台' };
+
+function show(id) {
+  const phone = document.getElementById('phone');
+  const tpl = document.getElementById('tpl-' + id);
+  phone.innerHTML = '';
+  const node = tpl.content.cloneNode(true);
+  const wrap = document.createElement('div');
+  wrap.className = 'screen show';
+  if (id === 'admin') {
+    wrap.style.background = 'transparent';
+    wrap.style.overflow = 'auto';
+    phone.style.width = 'min(860px, 92vw)';
+    phone.style.height = 'auto';
+    phone.style.background = 'transparent';
+    phone.style.padding = '0';
+    phone.style.borderRadius = '0';
+    phone.style.boxShadow = 'none';
+  } else {
+    phone.style.width = '390px';
+    phone.style.height = '780px';
+    phone.style.background = '#111827';
+    phone.style.padding = '12px';
+    phone.style.borderRadius = '36px';
+    phone.style.boxShadow = '0 30px 80px rgba(0,0,0,.45)';
+  }
+  wrap.appendChild(node);
+  phone.appendChild(wrap);
+  document.getElementById('note').innerHTML = notes[id].html;
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.id === id));
+}
+
+const tabBox = document.getElementById('tabs');
+order.forEach(id => {
+  const b = document.createElement('button');
+  b.textContent = labels[id];
+  b.dataset.id = id;
+  b.onclick = () => show(id);
+  tabBox.appendChild(b);
+});
+show('home');
+</script>
+</body>
+</html>

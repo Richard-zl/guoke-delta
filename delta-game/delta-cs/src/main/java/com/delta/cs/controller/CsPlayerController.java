@@ -11,6 +11,7 @@ import com.delta.pay.service.TransactionService;
 import com.delta.player.entity.Player;
 import com.delta.player.entity.PlayerWallet;
 import com.delta.player.service.PlayerService;
+import com.delta.player.service.PlayerShowcaseService;
 import com.delta.player.service.PlayerWalletService;
 import com.delta.player.service.PlayerWorkStatusService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class CsPlayerController {
     private final PlayerService playerService;
+    private final PlayerShowcaseService playerShowcaseService;
     private final PlayerWalletService playerWalletService;
     private final CrossModuleMapper crossModuleMapper;
     private final PlayerWorkStatusService playerWorkStatusService;
@@ -61,6 +63,7 @@ public class CsPlayerController {
             p.setCompletedOrders(crossModuleMapper.selectPlayerCompletedOrders(p.getId()));
         }
         playerWorkStatusService.enrichBatch(page.getRecords());
+        playerShowcaseService.fillOnWall(page.getRecords());
         int maxConcurrent = playerWorkStatusService.getMaxConcurrent();
         Map<String, Object> result = new HashMap<>();
         result.put("players", page);
@@ -99,6 +102,9 @@ public class CsPlayerController {
         p.setStatus(status);
         p.setRejectReason(rejectReason);
         playerService.updateById(p);
+        if (!"ACTIVE".equals(status)) {
+            playerShowcaseService.unpublishByPlayerId(id);
+        }
         return R.ok();
     }
 
@@ -116,6 +122,7 @@ public class CsPlayerController {
             }
         }
         playerService.updateById(p);
+        playerShowcaseService.unpublishByPlayerId(id);
         return R.ok();
     }
 

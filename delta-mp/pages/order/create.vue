@@ -131,6 +131,7 @@
                 <text v-if="isOnline(p)" class="online-badge">在线</text>
                 <text v-else class="offline-badge">离线</text>
                 <text v-if="isFull(p)" class="full-badge">已满载</text>
+                <text v-if="p.onWall && !isUnderReview" class="showcase-link" @click.stop="viewShowcase(p)">查看风采</text>
               </view>
               <view class="picker-tags">
                 <text v-if="p.avgRating" class="picker-tag">⭐{{ Number(p.avgRating).toFixed(1) }}</text>
@@ -166,11 +167,15 @@ import PriceText from '@/components/PriceText.vue'
 import CouponPicker from '@/components/CouponPicker.vue'
 import { calcDiscountAmount, calcFinalAmount, getCouponTypeLabel } from '@/utils/coupon'
 import { createOrder, getAvailablePlayers } from '@/api/order'
+import { getShowcaseDetail } from '@/api/showcase'
 import { getProductDetail, getCategoryFormFields } from '@/api/product'
 import { getSavedInfoByCategory, saveDynamicInfo } from '@/api/user'
 import { getAvailableCoupons } from '@/api/user'
 import { useUserStore } from '@/store/user'
 import { blockIfUnderReview } from '@/composables/useAuditGuard'
+import { useAuditMode } from '@/composables/useAuditMode'
+
+const { isUnderReview } = useAuditMode()
 
 const userStore = useUserStore()
 const productId = ref(0)
@@ -374,7 +379,13 @@ async function searchPlayers() {
     const res = await getAvailablePlayers({ pageNum: 1, pageSize: 50, keyword: playerKeyword.value })
     const data = res.data || {}
     const page = data.players || {}
-    playerList.value = page.records || []
+    const records = page.records || []
+    // 已选打手可能不在首页 50 条内，补进列表以便显示选中态
+    const picked = selectedPlayer.value
+    if (picked && !playerKeyword.value && !records.some(x => x.id === picked.id)) {
+      records.unshift(picked)
+    }
+    playerList.value = records
     if (data.maxConcurrent != null) maxConcurrent.value = data.maxConcurrent
   } catch (e) {
     playerList.value = []
@@ -401,6 +412,44 @@ function confirmPickPlayer() {
   showPlayerPicker.value = false
 }
 
+function viewShowcase(p) {
+  uni.navigateTo({ url: `/pages/showcase/detail?playerId=${p.id}&from=picker` })
+}
+
+async function applyDesignateFromStorage() {
+  const raw = uni.getStorageSync('designatePlayerId')
+  if (raw === '' || raw == null) return
+  uni.removeStorageSync('designatePlayerId')
+  // 打手可能排在分页列表之后，直接按 id 取风采详情，用服务端算好的可指定结论
+  let card = null
+  let failMsg = ''
+  try {
+    const res = await getShowcaseDetail(raw)
+    card = res.data
+  } catch (e) {
+    failMsg = e?.msg || ''
+  }
+  if (!card || card.canDesignate !== true) {
+    // 仍打开指定开关，方便老板改选他人
+    wantDesignate.value = true
+    uni.showToast({ title: card?.designateBlockReason || failMsg || '该打手暂不可指定', icon: 'none' })
+    return
+  }
+  if (card.maxConcurrent != null) maxConcurrent.value = card.maxConcurrent
+  selectedPlayer.value = {
+    id: card.playerId,
+    nickname: card.nickname,
+    avatar: card.avatar,
+    avgRating: card.avgRating,
+    completedOrders: card.completedOrders,
+    activeOrders: card.activeOrders,
+    isOnline: card.isOnline,
+    onWall: true
+  }
+  // 置于赋值之后，watch 拉列表时才能把已选打手补进去
+  wantDesignate.value = true
+}
+
 onLoad(async (opts) => {
   if (await blockIfUnderReview()) return
   productId.value = opts.productId
@@ -425,6 +474,7 @@ onLoad(async (opts) => {
 
 onShow(async () => {
   if (await blockIfUnderReview()) return
+  await applyDesignateFromStorage()
 })
 
 async function submitOrder() {
@@ -625,6 +675,7 @@ async function submitOrder() {
 .online-badge { font-size: 20rpx; color: #22c55e; background: rgba(34,197,94,0.15); padding: 2rpx 10rpx; border-radius: 4rpx; }
 .offline-badge { font-size: 20rpx; color: #94a3b8; background: rgba(148,163,184,0.15); padding: 2rpx 10rpx; border-radius: 4rpx; }
 .full-badge { font-size: 20rpx; color: #ee6723; background: rgba(238,103,35,0.15); padding: 2rpx 10rpx; border-radius: 4rpx; }
+.showcase-link { font-size: 20rpx; color: #ff4544; padding: 2rpx 10rpx; }
 .picker-tags { display: flex; gap: 8rpx; margin-top: 6rpx; flex-wrap: wrap; }
 .picker-tag {
   font-size: 22rpx; color: rgba(0,0,0,0.55);

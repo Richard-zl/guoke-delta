@@ -77,6 +77,27 @@ export function adminPlayerUnfreeze(id) {
 export function adminPlayerUpdate(id, data) {
   return request({ url: `/admin/player/${id}`, method: 'put', data })
 }
+export function adminShowcaseList(params) {
+  return request({ url: '/admin/player/showcase/list', method: 'get', params })
+}
+export function adminShowcaseCreate(data) {
+  return request({ url: '/admin/player/showcase', method: 'post', data })
+}
+export function adminShowcaseUpdate(id, data) {
+  return request({ url: `/admin/player/showcase/${id}`, method: 'put', data })
+}
+export function adminShowcaseStatus(id, status) {
+  return request({ url: `/admin/player/showcase/${id}/status`, method: 'put', data: { status } })
+}
+export function adminShowcasePlayerMetrics(playerId) {
+  return request({ url: `/admin/player/showcase/player/${playerId}/metrics`, method: 'get' })
+}
+export function adminShowcaseReviews(playerId, params) {
+  return request({ url: `/admin/player/showcase/${playerId}/reviews`, method: 'get', params })
+}
+export function adminShowcaseHideReview(reviewId, hide) {
+  return request({ url: `/admin/player/showcase/review/${reviewId}/hide`, method: 'put', data: { hide } })
+}
 export function csPlayerList(params) {
   return request({ url: '/cs/player/list', method: 'get', params })
 }

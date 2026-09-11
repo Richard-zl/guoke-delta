@@ -71,6 +71,30 @@
         </view>
       </view>
 
+      <!-- 打手风采（无上墙数据或审核期不展示） -->
+      <view v-if="configLoaded && !isUnderReview && showcaseList.length" class="section showcase-section">
+        <view class="section-header showcase-header">
+          <text class="section-title">打手风采</text>
+          <text class="section-more" @click="goShowcaseList">更多 ›</text>
+        </view>
+        <scroll-view scroll-x class="showcase-scroll" :show-scrollbar="false">
+          <view
+            v-for="item in showcaseList"
+            :key="item.playerId"
+            class="showcase-card"
+            hover-class="showcase-card-press"
+            @click="goShowcaseDetail(item.playerId)"
+          >
+            <view class="showcase-cover-wrap">
+              <image class="showcase-cover" :src="item.coverUrl || item.avatar" mode="aspectFill" />
+              <text class="showcase-ribbon" :class="showcaseStatus(item)">{{ showcaseStatusText(item) }}</text>
+            </view>
+            <text class="showcase-name">{{ item.nickname }}</text>
+            <text class="showcase-tagline">{{ item.tagline }}</text>
+          </view>
+        </scroll-view>
+      </view>
+
       <!-- 热门推荐商品（审核期隐藏） -->
       <view v-if="configLoaded && !isUnderReview" class="section">
         <view class="section-header">
@@ -177,6 +201,7 @@ import ProductCard from '@/components/ProductCard.vue'
 import CustomTabBar from '@/components/CustomTabBar.vue'
 import { getRecommendProducts, getRecommendCategories } from '@/api/product'
 import { getActiveBanners } from '@/api/banner'
+import { getActiveShowcase } from '@/api/showcase'
 import { getActiveNotices } from '@/api/notice'
 import { getCategoryTree } from '@/api/category'
 import { getRemind } from '@/api/message'
@@ -196,6 +221,7 @@ const userStore = useUserStore()
 const siteStore = useSiteStore()
 const { isUnderReview, configLoaded } = useAuditMode()
 const auditHomeArticles = AUDIT_HOME_ARTICLES
+const showcaseList = ref([])
 
 // 分享给好友
 onShareAppMessage(() => ({
@@ -270,6 +296,12 @@ async function loadData() {
       if (catRes?.data) {
         categories.value = (catRes.data || []).slice(0, 8)
       }
+      try {
+        const showRes = await getActiveShowcase({ pageNum: 1, pageSize: 8 }, { loading: false })
+        showcaseList.value = showRes.data?.records || []
+      } catch (e) {
+        showcaseList.value = []
+      }
       // 热门推荐分类 Tab
       if (categoriesRes?.data && Array.isArray(categoriesRes.data)) {
         recommendTabs.value = categoriesRes.data.map(c => ({ id: String(c.id), name: c.name }))
@@ -336,6 +368,23 @@ function goAuditCategory() {
   uni.switchTab({ url: '/pages/category/index' })
 }
 
+function showcaseStatus(item) {
+  if (item.isOnline !== 1) return 'off'
+  if ((item.activeOrders || 0) >= (item.maxConcurrent || 1)) return 'full'
+  return 'on'
+}
+function showcaseStatusText(item) {
+  const s = showcaseStatus(item)
+  if (s === 'off') return '离线'
+  if (s === 'full') return '满载'
+  return '可接'
+}
+function goShowcaseList() {
+  uni.navigateTo({ url: '/pages/showcase/list' })
+}
+function goShowcaseDetail(playerId) {
+  uni.navigateTo({ url: `/pages/showcase/detail?playerId=${playerId}` })
+}
 function goCategory(id) {
   if (id) uni.setStorageSync('selectedCategoryId', id)
   uni.switchTab({ url: '/pages/category/index' })
@@ -560,6 +609,43 @@ function goCustomerService() {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+.showcase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
+.showcase-scroll { white-space: nowrap; padding-bottom: 12rpx; }
+.showcase-card {
+  display: inline-block; width: 236rpx; margin-right: 20rpx; position: relative;
+  background: #fff; vertical-align: top;
+  border: 6rpx solid #111827;
+  border-radius: 48rpx 12rpx 40rpx 16rpx;
+  box-shadow: 8rpx 8rpx 0 #111827;
+}
+.showcase-card-press { transform: translate(4rpx, 4rpx); box-shadow: 4rpx 4rpx 0 #111827; }
+.showcase-cover-wrap {
+  position: relative; overflow: hidden;
+  border-radius: 42rpx 6rpx 0 0;
+  clip-path: polygon(0 0, 100% 0, 100% 86%, 0 100%);
+}
+.showcase-cover { width: 236rpx; height: 188rpx; background: #7c3aed; display: block; }
+.showcase-ribbon {
+  position: absolute; top: 18rpx; right: -8rpx;
+  font-size: 20rpx; font-weight: 800; color: #111827;
+  padding: 6rpx 16rpx; transform: rotate(8deg);
+  border: 4rpx solid #111827;
+}
+.showcase-ribbon.on { background: #b8f000; }
+.showcase-ribbon.off { background: #e2e8f0; }
+.showcase-ribbon.full { background: #ffd60a; }
+.showcase-name {
+  display: block; padding: 4rpx 14rpx 0;
+  font-size: 28rpx; font-weight: 800; color: #111827;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.showcase-tagline {
+  display: inline-block; margin: 8rpx 12rpx 16rpx;
+  padding: 4rpx 12rpx; font-size: 20rpx; font-weight: 700; color: #111827;
+  background: #ffd60a; border: 3rpx solid #111827;
+  transform: skewX(-10deg);
+  max-width: 200rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 .section {

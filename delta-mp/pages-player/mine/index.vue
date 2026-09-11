@@ -41,6 +41,11 @@
           <view v-if="remindStore.inviteCount > 0" class="badge">{{ remindStore.inviteCount > 99 ? '99+' : remindStore.inviteCount }}</view>
           <text class="arrow">›</text>
         </view>
+        <view class="menu-item" @click="go('/pages-player/showcase/index')">
+          <image class="menu-icon" src="/static/icons/提示.svg" mode="aspectFit" />
+          <text>风采资料</text>
+          <text class="arrow">›</text>
+        </view>
         <view class="menu-item" @click="go('/pages/message/index')">
           <image class="menu-icon" src="/static/icons/提示.svg" mode="aspectFit" />
           <text>系统通知</text>
