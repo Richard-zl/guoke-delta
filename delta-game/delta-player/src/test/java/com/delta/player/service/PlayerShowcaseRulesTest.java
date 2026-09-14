@@ -61,4 +61,19 @@ class PlayerShowcaseRulesTest {
         assertEquals("展示完成率应在0到100之间",
                 PlayerShowcaseRules.metricBlockReason(null, null, new BigDecimal("-0.01")));
     }
+
+    @Test
+    void rejectsVoiceFormatsPhonesCannotPlay() {
+        assertNull(PlayerShowcaseRules.voiceFormatBlockReason("https://x.cn/file/a.mp3"));
+        assertNull(PlayerShowcaseRules.voiceFormatBlockReason("https://x.cn/file/a.M4A"));
+        assertNull(PlayerShowcaseRules.voiceFormatBlockReason("https://x.cn/file/a.wav?v=2"));
+        assertEquals("当前录音格式（webm）在手机上无法播放，请用真机录制",
+                PlayerShowcaseRules.voiceFormatBlockReason("https://x.cn/file/a.webm"));
+        assertEquals("当前录音格式（ogg）在手机上无法播放，请用真机录制",
+                PlayerShowcaseRules.voiceFormatBlockReason("https://x.cn/file/a.ogg"));
+        assertEquals("语音格式无法识别，请重新录制",
+                PlayerShowcaseRules.voiceFormatBlockReason("https://x.cn/file/a"));
+        assertEquals("语音格式无法识别，请重新录制",
+                PlayerShowcaseRules.voiceFormatBlockReason(null));
+    }
 }

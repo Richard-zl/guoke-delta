@@ -84,6 +84,10 @@ public class PlayerShowcaseServiceImpl extends ServiceImpl<PlayerShowcaseMapper,
         if (reason != null) {
             throw new BusinessException(reason);
         }
+        String formatReason = PlayerShowcaseRules.voiceFormatBlockReason(url);
+        if (formatReason != null) {
+            throw new BusinessException(formatReason);
+        }
         Player patch = new Player();
         patch.setId(playerId);
         patch.setIntroVoiceUrl(url.trim());
@@ -246,7 +250,8 @@ public class PlayerShowcaseServiceImpl extends ServiceImpl<PlayerShowcaseMapper,
         vo.setCompletedOrders(card.getDisplayCompletedOrders() != null
                 ? card.getDisplayCompletedOrders() : completed);
         vo.setCompleteRate(card.getDisplayCompleteRate() != null
-                ? card.getDisplayCompleteRate() : player.getCompleteRate());
+                ? card.getDisplayCompleteRate()
+                : crossModuleMapper.selectPlayerCompleteRate(player.getId()));
         vo.setSkillTags(PlayerShowcaseRules.csvList(player.getSkillTags()));
         vo.setIsOnline(player.getIsOnline());
         vo.setActiveOrders(active);

@@ -1,15 +1,21 @@
 package com.delta.order.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.delta.common.dto.CategoryNameRow;
+import com.delta.common.dto.ProductCategoryRow;
 import com.delta.common.mapper.CrossModuleMapper;
 import com.delta.order.entity.Order;
 import com.delta.order.entity.OrderPlayer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 订单列表/详情展示字段填充（主接打手、辅助打手、用户昵称等）
@@ -22,15 +28,17 @@ public class OrderDisplayEnricher {
     private final CrossModuleMapper crossModuleMapper;
     private final RefundRequestService refundRequestService;
 
-    /** 填充用户、主接打手、辅助打手展示字段 */
+    /** 填充用户、主接打手、辅助打手、分类展示字段 */
     public void enrich(Order order) {
         enrichWithoutRefund(order);
+        fillCategory(List.of(order));
         fillRefundPending(order);
     }
 
     public void enrichList(List<Order> orders) {
         if (orders == null || orders.isEmpty()) return;
         orders.forEach(this::enrichWithoutRefund);
+        fillCategory(orders);
         fillRefundPending(orders);
     }
 
@@ -121,5 +129,47 @@ public class OrderDisplayEnricher {
                         .orderByAsc(OrderPlayer::getAcceptedAt)
                         .last("LIMIT 1"));
         return teammate != null ? teammate.getPlayerId() : null;
+    }
+
+    /** 批量填一级分类、平台（子分类） */
+    private void fillCategory(List<Order> orders) {
+        if (orders == null || orders.isEmpty()) return;
+        List<Long> productIds = orders.stream()
+                .map(Order::getProductId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (productIds.isEmpty()) return;
+
+        List<ProductCategoryRow> rows = crossModuleMapper.selectProductCategories(productIds);
+        Map<Long, ProductCategoryRow> byProduct = new HashMap<>();
+        Set<Long> parentIds = new HashSet<>();
+        for (ProductCategoryRow row : rows) {
+            if (row.getProductId() == null) continue;
+            byProduct.put(row.getProductId(), row);
+            if (row.getParentId() != null && row.getParentId() > 0) {
+                parentIds.add(row.getParentId());
+            }
+        }
+        Map<Long, String> parentNames = parentIds.isEmpty()
+                ? Map.of()
+                : crossModuleMapper.selectCategoryNames(parentIds.stream().toList()).stream()
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(CategoryNameRow::getId, CategoryNameRow::getName, (a, b) -> a));
+
+        for (Order order : orders) {
+            ProductCategoryRow row = byProduct.get(order.getProductId());
+            if (row == null) {
+                order.setPlatformName(OrderDispatchCopyRules.inferPlatform(order.getProductName()));
+                continue;
+            }
+            String parentName = parentNames.get(row.getParentId());
+            order.setCategoryName(OrderDispatchCopyRules.firstCategoryName(
+                    row.getCategoryName(), row.getParentId(), parentName));
+            order.setPlatformName(OrderDispatchCopyRules.platformName(
+                    row.getCategoryName(), row.getParentId(), parentName, order.getProductName()));
+            order.setDispatchDetailBlank(OrderDispatchCopyRules.blankDispatchDetail(
+                    row.getCategoryName(), row.getParentId(), parentName));
+        }
     }
 }

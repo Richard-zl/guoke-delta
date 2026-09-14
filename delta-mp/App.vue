@@ -8,6 +8,7 @@ import { useRemindStore } from '@/store/remind'
 import { useSiteStore } from '@/store/site'
 import { getTokenByRole } from '@/utils/auth'
 import { setupAuditRouteInterceptor } from '@/composables/useAuditGuard'
+import { bypassMuteSwitch } from '@/utils/voiceAudio'
 
 function shouldConnectChat() {
   const role = uni.getStorageSync('app_role') || 'user'
@@ -69,6 +70,8 @@ onLaunch(() => {
 })
 
 onShow(() => {
+  // iOS 回到前台会重置音频会话，每次都要重新声明不遵循静音开关
+  bypassMuteSwitch()
   const chatStore = useChatStore()
   if (shouldConnectChat()) {
     if (!chatStore.connected) chatStore.connect()

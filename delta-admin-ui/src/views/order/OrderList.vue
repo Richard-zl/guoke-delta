@@ -95,9 +95,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="下单时间" width="170" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="380" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="showDetail(row.id)">详情</el-button>
+            <el-button link type="primary" @click="copyDispatchInfo(row)">复制信息派单</el-button>
             <el-button v-if="canAssign(row)" link type="warning" @click="openAssignDialog(row)">{{ row.status === 'ASSIGNED' ? '重新指派' : '指派' }}</el-button>
             <el-button v-if="['ASSIGNED','IN_PROGRESS'].includes(row.status)" link type="danger" @click="handleRefund(row)">退款</el-button>
           </template>
@@ -490,6 +491,57 @@ function formatAssistPlayer(row) {
 function formatOrderStatus(row) {
   const label = orderStatusLabel(row.status)
   return row.refundPending ? `${label}（退款审核中）` : label
+}
+
+function formatMoney(value) {
+  const num = Number(value)
+  if (Number.isNaN(num)) return '0.00'
+  return num.toFixed(2)
+}
+
+function formatDispatchDetail(row) {
+  if (row.dispatchDetailBlank || row.categoryName === '任务单') return ''
+  const product = row.productName || ''
+  const spec = row.variantName || row.specInfo || ''
+  if (product && spec) return `${product}·${spec}`
+  return product || spec
+}
+
+/** 派单剪贴板文案：指定打手、备注固定留空 */
+function buildDispatchCopyText(row) {
+  const original = formatMoney(row.originalAmount != null ? row.originalAmount : row.amount)
+  const paid = formatMoney(row.amount)
+  return [
+    `【类型】：${row.categoryName || ''}`,
+    `【平台】：${row.platformName || ''}`,
+    `【编号】：${row.orderNo || ''}`,
+    `【详情】：${formatDispatchDetail(row)}`,
+    `【金额】：原价${original}，折后¥${paid}`,
+    '【指定打手】：',
+    '【备注】：',
+    '需要全程录屏，保留七天，无视频不结佣',
+  ].join('\n')
+}
+
+async function copyDispatchInfo(row) {
+  const text = buildDispatchCopyText(row)
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.left = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    ElMessage.success('派单信息已复制')
+  } catch {
+    ElMessage.error('复制失败，请检查浏览器权限')
+  }
 }
 
 /** 按当前筛选导出全部订单，表头与列表一致（不含操作列） */

@@ -103,4 +103,16 @@ public class Order {
     /** 是否有待审核退款申请（非DB字段） */
     @TableField(exist = false)
     private Boolean refundPending;
+
+    /** 一级分类名（非DB字段，派单文案「类型」） */
+    @TableField(exist = false)
+    private String categoryName;
+
+    /** 平台/子分类名（非DB字段，派单文案「平台」） */
+    @TableField(exist = false)
+    private String platformName;
+
+    /** 定制专区派单时详情留空 */
+    @TableField(exist = false)
+    private Boolean dispatchDetailBlank;
 }

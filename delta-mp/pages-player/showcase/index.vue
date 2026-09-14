@@ -32,6 +32,7 @@ import { reactive, ref } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { getMyShowcase, saveMyVoice, saveMyGallery } from '@/api/showcase'
 import { upload, chooseAndUpload } from '@/api/file'
+import { createVoiceAudio } from '@/utils/voiceAudio'
 
 const info = reactive({ onWall: false, introVoiceUrl: '', introVoiceSeconds: 0 })
 const images = ref([])
@@ -61,8 +62,7 @@ async function loadMe() {
 function playVoice() {
   if (!info.introVoiceUrl) return
   if (audio) { audio.stop(); audio.destroy() }
-  audio = uni.createInnerAudioContext()
-  audio.src = info.introVoiceUrl
+  audio = createVoiceAudio(info.introVoiceUrl)
   audio.onError(() => uni.showToast({ title: '语音加载失败', icon: 'none' }))
   audio.play()
 }

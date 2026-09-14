@@ -1,11 +1,15 @@
 package com.delta.common.mapper;
 
+import com.delta.common.dto.CategoryNameRow;
 import com.delta.common.dto.PlayerActiveOrderStats;
+import com.delta.common.dto.ProductCategoryRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -133,6 +137,22 @@ public interface CrossModuleMapper {
     @Select("SELECT COUNT(DISTINCT o.id) FROM `order` o WHERE o.status IN ('COMPLETED','CONFIRMED','REVIEWED')"
             + PLAYER_PARTICIPATED_CONDITION)
     int selectPlayerCompletedOrders(@Param("playerId") Long playerId);
+
+    /** 打手参与过且已进入终态的订单数，作为完成率分母；退款/取消/仲裁计为未完成。 */
+    @Select("SELECT COUNT(DISTINCT o.id) FROM `order` o WHERE o.status IN "
+            + "('COMPLETED','CONFIRMED','REVIEWED','CANCELLED','REFUNDED','ARBITRATED')"
+            + PLAYER_PARTICIPATED_CONDITION)
+    int selectPlayerSettledOrders(@Param("playerId") Long playerId);
+
+    /** 完成率按已结束订单实时计算；player.complete_rate 自入驻写入后无人维护，不可直接取用。 */
+    default BigDecimal selectPlayerCompleteRate(Long playerId) {
+        int settled = selectPlayerSettledOrders(playerId);
+        if (settled <= 0) {
+            return new BigDecimal("100.00");
+        }
+        return BigDecimal.valueOf(selectPlayerCompletedOrders(playerId) * 100L)
+                .divide(BigDecimal.valueOf(settled), 2, RoundingMode.HALF_UP);
+    }
 
     /** 统计打手占用订单，包含主打手、辅助打手和已接受队友，同一订单只计一次。 */
     @Select("""
@@ -274,4 +294,20 @@ public interface CrossModuleMapper {
                                       @Param("categoryIds") List<Long> categoryIds,
                                       @Param("startTime") LocalDateTime startTime,
                                       @Param("excludeOrderId") Long excludeOrderId);
+
+    /** 批量查商品所属分类（含子分类的 parent_id） */
+    @Select("<script>" +
+            "SELECT p.id AS productId, c.id AS categoryId, c.name AS categoryName, c.parent_id AS parentId " +
+            "FROM product p INNER JOIN category c ON c.id = p.category_id " +
+            "WHERE p.id IN " +
+            "<foreach collection='productIds' item='id' open='(' separator=',' close=')'>#{id}</foreach>" +
+            "</script>")
+    List<ProductCategoryRow> selectProductCategories(@Param("productIds") List<Long> productIds);
+
+    /** 批量查分类名称 */
+    @Select("<script>" +
+            "SELECT id, name FROM category WHERE id IN " +
+            "<foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach>" +
+            "</script>")
+    List<CategoryNameRow> selectCategoryNames(@Param("ids") List<Long> ids);
 }

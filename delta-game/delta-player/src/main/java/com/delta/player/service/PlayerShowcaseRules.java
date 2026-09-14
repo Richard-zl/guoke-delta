@@ -14,6 +14,14 @@ public final class PlayerShowcaseRules {
     public static final int MAX_TAGLINE = 8;
     public static final int MAX_BIO = 200;
 
+    /**
+     * iOS 与 Android 的原生播放器都能解码的语音格式。
+     * 尤其要挡住 WebM/Ogg：微信开发者工具的录音实际是 WebM，
+     * 模拟器能播但 iOS 真机会直接报 -11800。
+     */
+    private static final Set<String> PLAYABLE_VOICE_FORMATS =
+            Set.of("mp3", "m4a", "aac", "wav", "mp4");
+
     private PlayerShowcaseRules() {}
 
     public static String publishBlockReason(String playerStatus, String voiceUrl, String tagline) {
@@ -40,6 +48,37 @@ public final class PlayerShowcaseRules {
             return "语音最长60秒";
         }
         return null;
+    }
+
+    /** 校验语音格式，拦住真机播不了的容器；上传接口已按真实内容纠正过扩展名。 */
+    public static String voiceFormatBlockReason(String url) {
+        String format = formatOf(url);
+        if (format == null) {
+            return "语音格式无法识别，请重新录制";
+        }
+        if (!PLAYABLE_VOICE_FORMATS.contains(format)) {
+            return "当前录音格式（" + format + "）在手机上无法播放，请用真机录制";
+        }
+        return null;
+    }
+
+    private static String formatOf(String url) {
+        if (url == null) {
+            return null;
+        }
+        String path = url.trim();
+        int query = path.indexOf('?');
+        if (query >= 0) {
+            path = path.substring(0, query);
+        }
+        // 只在最后一个路径段里找后缀，否则域名里的点会被误判成扩展名
+        int slash = path.lastIndexOf('/');
+        String name = slash >= 0 ? path.substring(slash + 1) : path;
+        int dot = name.lastIndexOf('.');
+        if (dot < 0 || dot == name.length() - 1) {
+            return null;
+        }
+        return name.substring(dot + 1).toLowerCase();
     }
 
     /** 校验仅用于风采页的运营展示指标，空值表示使用真实数据。 */

@@ -73,7 +73,7 @@ public class AdminPlayerShowcaseController {
         metrics.put("realAvgRating", player.getAvgRating());
         metrics.put("realCompletedOrders",
                 crossModuleMapper.selectPlayerCompletedOrders(playerId));
-        metrics.put("realCompleteRate", player.getCompleteRate());
+        metrics.put("realCompleteRate", crossModuleMapper.selectPlayerCompleteRate(playerId));
         return R.ok(metrics);
     }
 
@@ -120,7 +120,8 @@ public class AdminPlayerShowcaseController {
             row.put("realAvgRating", player.getAvgRating());
             row.put("realCompletedOrders",
                     crossModuleMapper.selectPlayerCompletedOrders(player.getId()));
-            row.put("realCompleteRate", player.getCompleteRate());
+            row.put("realCompleteRate",
+                    crossModuleMapper.selectPlayerCompleteRate(player.getId()));
             row.put("isOnline", player.getIsOnline());
         }
         return row;

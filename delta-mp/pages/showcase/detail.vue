@@ -89,6 +89,7 @@ import { ref, computed } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { getShowcaseDetail, getShowcaseReviews } from '@/api/showcase'
 import { blockIfUnderReview } from '@/composables/useAuditGuard'
+import { createVoiceAudio } from '@/utils/voiceAudio'
 
 const detail = ref(null)
 const fromPicker = ref(false)
@@ -149,8 +150,7 @@ function toggleVoice() {
   const url = detail.value?.introVoiceUrl
   if (!url) return uni.showToast({ title: '暂无语音', icon: 'none' })
   if (playing.value) return stopVoice()
-  audio = uni.createInnerAudioContext()
-  audio.src = url
+  audio = createVoiceAudio(url)
   audio.onPlay(() => { playing.value = true })
   audio.onEnded(() => stopVoice())
   audio.onError(() => {
