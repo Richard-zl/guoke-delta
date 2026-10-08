@@ -69,7 +69,7 @@
         <section class="form-section">
           <div class="section-title">
             <strong>价格与规则</strong>
-            <span>设置售价、平台抽成、限购和排序</span>
+            <span>设置售价、限购和排序</span>
           </div>
           <div class="section-body">
             <el-row :gutter="18">
@@ -78,11 +78,13 @@
                   <el-input-number v-model="form.price" :min="0" :precision="2" class="full-control" />
                 </el-form-item>
               </el-col>
+              <!-- 商品级抽成入口暂时关闭，避免误配为 0。恢复时取消本段注释，并恢复下方 form.commissionRate。
               <el-col :span="8">
                 <el-form-item label="抽成比例">
                   <el-input-number v-model="form.commissionRate" :min="0" :max="1" :precision="2" :step="0.05" placeholder="默认" :controls="true" class="full-control" />
                 </el-form-item>
               </el-col>
+              -->
               <el-col :span="8">
                 <el-form-item label="排序">
                   <el-input-number v-model="form.sortOrder" :min="0" class="full-control" />
@@ -98,7 +100,8 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <div class="inline-tip">抽成比例填 0.2 表示 20%，留空则使用系统默认比例。开启「可选数量」时不可设置限购。</div>
+                <!-- 抽成比例填 0.2 表示 20%，留空则使用系统默认比例。 -->
+                <div class="inline-tip">开启「可选数量」时不可设置限购。</div>
               </el-col>
             </el-row>
             <el-form-item label="规格选项">
@@ -187,7 +190,8 @@ const limitTypeOptions = [
 ]
 const form = reactive({
   name: '', subtitle: '', categoryId: null, coverImage: '', description: '',
-  price: null, status: 1, sortOrder: 0, isRecommend: 0, recommendCategoryId: null, commissionRate: null,
+  price: null, status: 1, sortOrder: 0, isRecommend: 0, recommendCategoryId: null,
+  // commissionRate: null,
   perUserLimitType: 0, quantityEnabled: 0, unitLabel: '', maxQuantity: 24
 })
 const variants = ref([])
@@ -221,7 +225,8 @@ async function loadDetail() {
       name: p.name, subtitle: p.subtitle || '', categoryId: p.categoryId, coverImage: p.coverImage || '',
       description: p.description || '', price: p.price ?? null,
       status: p.status ?? 1, sortOrder: p.sortOrder || 0, isRecommend: p.isRecommend || 0,
-      recommendCategoryId: p.recommendCategoryId ?? null, commissionRate: p.commissionRate ?? null,
+      recommendCategoryId: p.recommendCategoryId ?? null,
+      // commissionRate: p.commissionRate ?? null,
       perUserLimitType: normalizePerUserLimitType(p),
       quantityEnabled: p.quantityEnabled ?? 0,
       unitLabel: p.unitLabel || '',
