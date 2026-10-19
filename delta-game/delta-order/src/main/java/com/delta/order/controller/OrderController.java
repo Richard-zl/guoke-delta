@@ -75,18 +75,28 @@ public class OrderController {
     }
 
     private void fillCouponInfo(Order order) {
-        // 已有快照字段时保留下单时写入的原价/会员折/券折，仅补券名称类型
-        if (order.getOriginalAmount() != null) {
-            if (order.getUserCouponId() != null && (order.getCouponName() == null || order.getCouponType() == null)) {
-                OrderCouponView couponView = couponService.buildOrderCouponView(order.getUserCouponId(), order.getAmount());
+        OrderCouponView couponView = order.getUserCouponId() == null
+                ? null
+                : couponService.buildOrderCouponView(order.getUserCouponId(), order.getAmount());
+        if (couponView != null) {
+            if (order.getCouponName() == null) {
                 order.setCouponName(couponView.getCouponName());
+            }
+            if (order.getCouponType() == null) {
                 order.setCouponType(couponView.getCouponType());
             }
+            order.setCouponDiscountRate(couponView.getDiscountRate());
+        }
+        // 已有快照时保留下单时写入的原价和券折
+        if (order.getOriginalAmount() != null) {
             return;
         }
-        OrderCouponView couponView = couponService.buildOrderCouponView(order.getUserCouponId(), order.getAmount());
+        if (couponView == null) {
+            couponView = couponService.buildOrderCouponView(order.getUserCouponId(), order.getAmount());
+        }
         order.setCouponName(couponView.getCouponName());
         order.setCouponType(couponView.getCouponType());
+        order.setCouponDiscountRate(couponView.getDiscountRate());
         order.setOriginalAmount(couponView.getOriginalAmount());
         order.setCouponDiscountAmount(couponView.getCouponDiscountAmount());
     }

@@ -242,19 +242,25 @@
     <!-- 发放优惠券子弹窗 -->
     <el-dialog v-model="grantVisible" title="发放优惠券" width="450px" append-to-body destroy-on-close>
       <el-form ref="grantFormRef" :model="grantForm" :rules="grantRules" label-width="90px">
-        <el-form-item label="优惠券" prop="couponId">
-          <el-select v-model="grantForm.couponId" placeholder="请选择优惠券" style="width: 100%" @change="onCouponSelect">
-            <el-option
-              v-for="c in couponTemplates"
-              :key="c.id"
-              :label="c.name"
-              :value="c.id"
-              :disabled="c.status !== 1"
-            />
+        <el-form-item label="折扣" prop="discountZhe">
+          <el-select v-model="grantForm.discountZhe" placeholder="请选择折扣" style="width: 100%" @change="onDiscountSelect">
+            <el-option v-for="item in discountPresets" :key="item" :label="formatZheLabel(item)" :value="item" />
+            <el-option label="自定义" value="custom" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="selectedTemplate" label="说明">
-          <span class="grant-desc">{{ formatTemplateDesc(selectedTemplate) }}</span>
+        <el-form-item v-if="grantForm.discountZhe === 'custom'" label="自定义" prop="customZhe">
+          <el-input-number
+            v-model="grantForm.customZhe"
+            :min="9"
+            :max="9.9"
+            :step="0.1"
+            :precision="1"
+            style="width: 100%"
+          />
+          <div class="grant-desc">只能填 9.0 到 9.9，一位小数。不能低于九折。</div>
+        </el-form-item>
+        <el-form-item label="说明">
+          <span class="grant-desc">{{ grantPreview }}，当月有效</span>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="grantForm.remark" placeholder="发放原因（选填）" />
@@ -273,7 +279,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import {
   adminUserList, adminUserDetail, adminUserUpdateStatus, adminUserAdjustBalance,
   adminUserAdjustCurrentPoints, adminUserAdjustTotalPoints,
-  adminOrderList, adminCouponList, adminUserCouponList, adminUserGrantCoupon, adminUserRevokeCoupon,
+  adminOrderList, adminUserCouponList, adminUserGrantCoupon, adminUserRevokeCoupon,
   csUserList, csUserDetail, csUserUpdateStatus, csOrderList, csUserCouponList
 } from '@/api/business'
 import { useUserStore } from '@/stores/user'
@@ -597,49 +603,72 @@ async function handleRevokeCoupon(row) {
   }
 }
 
-// 发放优惠券
+// 发放优惠券：9.9 到 9.0 折，自定义也限制在这个区间
 const grantVisible = ref(false)
 const grantSubmitting = ref(false)
 const grantFormRef = ref(null)
-const grantForm = reactive({ couponId: null, remark: '' })
+const grantForm = reactive({ discountZhe: null, customZhe: 9.5, remark: '' })
+const discountPresets = Array.from({ length: 10 }, (_, i) => ((99 - i) / 10).toFixed(1))
 const grantRules = {
-  couponId: [{ required: true, message: '请选择优惠券', trigger: 'change' }]
+  discountZhe: [{ required: true, message: '请选择折扣', trigger: 'change' }],
+  customZhe: [{
+    validator: (_rule, value, callback) => {
+      if (grantForm.discountZhe !== 'custom') {
+        callback()
+        return
+      }
+      if (value == null || value < 9 || value > 9.9) {
+        callback(new Error('折扣需在9.0到9.9之间'))
+        return
+      }
+      callback()
+    },
+    trigger: 'change'
+  }]
 }
-const couponTemplates = ref([])
-const selectedTemplate = computed(() => couponTemplates.value.find(c => c.id === grantForm.couponId))
 
-function formatTemplateDesc(tpl) {
-  const amount = tpl.type?.startsWith('CASH')
-    ? `${Number(tpl.cashAmount || 0)}元代金券`
-    : `${parseFloat((tpl.discountRate * 10).toFixed(1))}折优惠券`
-  const threshold = tpl.minAmount > 0 ? `，满${tpl.minAmount}元可用` : '，无门槛'
-  return amount + threshold + '，当月有效'
+function formatZheLabel(zhe) {
+  return `${parseFloat(zhe)}折`
+}
+
+const grantPreview = computed(() => {
+  if (!grantForm.discountZhe) return '请选择折扣'
+  if (grantForm.discountZhe === 'custom') {
+    return grantForm.customZhe != null ? `${parseFloat(Number(grantForm.customZhe).toFixed(1))}折优惠券，无门槛` : '请填写折扣'
+  }
+  return `${formatZheLabel(grantForm.discountZhe)}优惠券，无门槛`
+})
+
+function resolvedDiscountZhe() {
+  if (grantForm.discountZhe === 'custom') {
+    if (grantForm.customZhe == null) return null
+    return Number(grantForm.customZhe).toFixed(1)
+  }
+  return grantForm.discountZhe
 }
 
 async function openGrantDialog() {
-  grantForm.couponId = null
+  grantForm.discountZhe = null
+  grantForm.customZhe = 9.5
   grantForm.remark = ''
   grantVisible.value = true
-  if (couponTemplates.value.length === 0) {
-    try {
-      const res = await adminCouponList()
-      couponTemplates.value = (res.data || []).filter(c => c.status === 1)
-    } catch {
-      ElMessage.error('加载优惠券模板失败')
-    }
-  }
 }
 
-function onCouponSelect() { /* 触发 selectedTemplate 更新 */ }
+function onDiscountSelect() { /* 切换预设和自定义 */ }
 
 async function handleGrantSubmit() {
   const valid = await grantFormRef.value.validate().catch(() => false)
   if (!valid) return
+  const discountZhe = resolvedDiscountZhe()
+  if (!discountZhe) {
+    ElMessage.warning('请选择折扣')
+    return
+  }
 
   grantSubmitting.value = true
   try {
     await adminUserGrantCoupon(couponUser.value.id, {
-      couponId: grantForm.couponId,
+      discountZhe,
       remark: grantForm.remark
     })
     ElMessage.success('发放成功')

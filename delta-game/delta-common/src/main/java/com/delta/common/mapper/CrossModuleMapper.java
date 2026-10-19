@@ -178,6 +178,30 @@ public interface CrossModuleMapper {
             """)
     int selectPlayerActiveOrders(@Param("playerId") Long playerId);
 
+    /** 删除打手前统计未完结订单，含待确认、争议中和退款中。 */
+    @Select("""
+            SELECT COUNT(DISTINCT occupied.order_id)
+            FROM (
+                SELECT o.id AS order_id
+                FROM `order` o
+                WHERE o.player_id = #{playerId}
+                  AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS','COMPLETED','DISPUTED','REFUNDING')
+                UNION
+                SELECT o.id
+                FROM `order` o
+                WHERE o.player_id2 = #{playerId}
+                  AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS','COMPLETED','DISPUTED','REFUNDING')
+                UNION
+                SELECT op.order_id
+                FROM order_player op
+                INNER JOIN `order` o ON o.id = op.order_id
+                WHERE op.player_id = #{playerId}
+                  AND op.status = 'ACCEPTED'
+                  AND o.status IN ('ASSIGNED','ACCEPTED','WAITING_TEAMMATE','IN_PROGRESS','COMPLETED','DISPUTED','REFUNDING')
+            ) occupied
+            """)
+    int countPlayerOpenOrders(@Param("playerId") Long playerId);
+
     /** 接受指派时排除当前订单，避免预占名额阻断当前订单确认。 */
     @Select("""
             SELECT COUNT(DISTINCT occupied.order_id)

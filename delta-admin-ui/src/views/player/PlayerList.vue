@@ -13,9 +13,10 @@
       <el-form :inline="true" :model="query" class="search-form">
         <el-form-item><el-input v-model="query.keyword" placeholder="搜索打手" clearable @keyup.enter="fetchData" /></el-form-item>
         <el-form-item>
-          <el-select v-model="query.status" placeholder="状态" clearable>
+          <el-select v-model="query.status" placeholder="状态" clearable @change="onStatusFilter">
             <el-option label="待审核" value="PENDING" /><el-option label="正常" value="ACTIVE" />
             <el-option label="已驳回" value="REJECTED" /><el-option label="已冻结" value="FROZEN" />
+            <el-option label="已离职" value="RESIGNED" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -62,7 +63,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="注册时间" width="170" />
-        <el-table-column label="操作" width="360" fixed="right">
+        <el-table-column label="操作" width="520" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="showDetail(row.id)">详情</el-button>
             <el-button link type="primary" @click="openEditDialog(row)">{{ isAdmin ? '编辑' : '改名' }}</el-button>
@@ -75,6 +76,12 @@
             <el-popconfirm v-if="row.status === 'FROZEN'" title="确认解冻？" @confirm="handleUnfreeze(row.id)">
               <template #reference><el-button link type="success">解冻</el-button></template>
             </el-popconfirm>
+            <template v-if="isAdmin">
+              <el-button v-if="row.status === 'ACTIVE' || row.status === 'FROZEN'" link type="primary" @click="openReferral(row)">转介绍</el-button>
+              <el-button link type="warning" @click="openFundDialog(row)">资金调整</el-button>
+              <el-button v-if="row.status === 'ACTIVE' || row.status === 'FROZEN'" link type="danger" @click="handleResign(row)">离职</el-button>
+              <el-button v-if="row.status === 'RESIGNED'" link type="danger" @click="handleDelete(row)">删除</el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -104,7 +111,9 @@
         <el-descriptions :column="2" border size="small" style="margin-top:16px">
           <el-descriptions-item label="手机号">{{ detailData.phone || '-' }}</el-descriptions-item>
           <el-descriptions-item label="等级">{{ detailData.level || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="余额">¥{{ detailData.balance || 0 }}</el-descriptions-item>
+          <el-descriptions-item label="可提现余额">¥{{ formatMoney(detailData.balance) }}</el-descriptions-item>
+          <el-descriptions-item label="待入账">¥{{ formatMoney(detailData.pendingBalance) }}</el-descriptions-item>
+          <el-descriptions-item label="提现冻结">¥{{ formatMoney(detailData.frozenAmount) }}</el-descriptions-item>
           <el-descriptions-item label="完成订单">{{ detailData.completedOrders || 0 }}</el-descriptions-item>
           <el-descriptions-item label="评分">{{ detailData.avgRating || '-' }}</el-descriptions-item>
           <el-descriptions-item label="注册时间" :span="2">{{ detailData.createdAt }}</el-descriptions-item>
@@ -181,6 +190,101 @@
       </el-table>
       <Pagination :total="ordersTotal" v-model:page="ordersQuery.pageNum" v-model:limit="ordersQuery.pageSize" @pagination="fetchPlayerOrders" />
     </el-dialog>
+    <!-- 资金调整 -->
+    <el-dialog v-model="fundVisible" title="打手资金调整" width="640px" destroy-on-close>
+      <p class="fund-subtitle">对打手可提现余额补款或扣款。操作会写入资金流水和操作日志。</p>
+      <div class="fund-modes">
+        <button type="button" class="fund-mode" :class="{ active: fundForm.direction === 'ADD' }" @click="fundForm.direction = 'ADD'">
+          <b>补款</b>
+          <span>增加可提现余额</span>
+        </button>
+        <button type="button" class="fund-mode deduct" :class="{ active: fundForm.direction === 'DEDUCT' }" @click="fundForm.direction = 'DEDUCT'">
+          <b>扣款</b>
+          <span>扣除可提现余额</span>
+        </button>
+      </div>
+      <el-form label-width="96px">
+        <el-form-item label="目标打手" required>
+          <el-select
+            v-model="fundForm.playerId"
+            filterable
+            remote
+            :remote-method="searchFundPlayers"
+            :loading="fundPlayerLoading"
+            placeholder="搜索昵称 / 手机号 / 打手ID"
+            style="width:100%"
+            @change="loadFundWallet"
+          >
+            <el-option v-for="p in fundPlayerOptions" :key="p.id" :value="p.id" :label="fundPlayerLabel(p)" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="调整金额" required>
+          <el-input-number v-model="fundForm.amount" :min="0.01" :precision="2" :step="1" style="width:220px" />
+        </el-form-item>
+        <div class="fund-snapshot">
+          当前余额 ¥{{ formatMoney(fundWallet.balance) }}
+          · 待入账 ¥{{ formatMoney(fundWallet.pendingBalance) }}
+          · 冻结 ¥{{ formatMoney(fundWallet.frozenAmount) }}
+          · 押金 {{ fundWallet.depositPaymentNo ? '已缴纳' : '未缴纳' }}
+        </div>
+        <el-form-item label="关联订单">
+          <el-input v-model="fundForm.orderNo" placeholder="选填，输入本店订单号后核对" clearable @blur="lookupFundOrder" />
+          <div v-if="fundOrderHint" class="fund-hint" :class="{ error: !fundOrderOk }">{{ fundOrderHint }}</div>
+        </el-form-item>
+        <el-form-item label="原因" required>
+          <div class="fund-tags">
+            <el-button v-for="tag in fundTags" :key="tag" size="small" @click="appendFundTag(tag)">{{ tag }}</el-button>
+          </div>
+          <el-input v-model="fundForm.remark" type="textarea" :rows="3" maxlength="200" show-word-limit placeholder="请输入本次调整的原因" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="fund-foot-note">操作记录保存在资金流水和操作日志，可随时追溯</span>
+        <el-button @click="fundVisible = false">取消</el-button>
+        <el-button :type="fundForm.direction === 'DEDUCT' ? 'danger' : 'primary'" :loading="fundSaving" @click="submitFund">
+          {{ fundForm.direction === 'DEDUCT' ? '确认扣款' : '确认补款' }}
+        </el-button>
+      </template>
+    </el-dialog>
+    <!-- 转介绍客户 -->
+    <el-dialog v-model="referralVisible" :title="(referralPlayer?.nickname || '') + ' 的转介绍客户'" width="760px" destroy-on-close>
+      <p class="fund-subtitle">绑定已注册客户。一个客户同时只能属于一个介绍打手。比例只影响之后确认的订单。</p>
+      <div class="referral-search">
+        <el-input v-model="referralKeyword" placeholder="用户ID / 手机号 / 昵称" clearable @keyup.enter="searchReferralUsers" />
+        <el-button :loading="referralSearching" @click="searchReferralUsers">查找</el-button>
+      </div>
+      <el-table v-if="referralCandidates.length" :data="referralCandidates" size="small" highlight-current-row class="referral-candidates" @current-change="onPickReferralUser">
+        <el-table-column width="48">
+          <template #default="{ row }">
+            <span>{{ referralPick?.id === row.id ? '✓' : '' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="id" label="用户ID" width="100" />
+        <el-table-column prop="nickname" label="昵称" min-width="140" />
+        <el-table-column prop="phone" label="手机号" min-width="140" />
+      </el-table>
+      <div v-if="referralPick" class="fund-hint">已选择：{{ referralPick.nickname || '未命名' }}（ID:{{ referralPick.id }}，{{ referralPick.phone || '无手机号' }}）</div>
+      <div class="referral-add">
+        <span>介绍比例</span>
+        <el-input-number v-model="referralRate" :min="0.01" :max="100" :precision="2" :step="0.5" />
+        <span>%</span>
+        <el-button type="primary" :loading="referralSaving" @click="submitReferral">新增</el-button>
+      </div>
+      <el-table :data="referralList" v-loading="referralLoading" size="small">
+        <el-table-column prop="nickname" label="客户" min-width="120" />
+        <el-table-column prop="phone" label="手机号" min-width="130" />
+        <el-table-column label="比例" width="90">
+          <template #default="{ row }">{{ row.ratePercent }}%</template>
+        </el-table-column>
+        <el-table-column prop="boundAt" label="绑定时间" min-width="170" />
+        <el-table-column label="操作" width="140">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="editReferralRate(row)">改比例</el-button>
+            <el-button link type="danger" @click="unbindReferral(row)">解绑</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
     <!-- 冻结弹窗 -->
     <el-dialog v-model="freezeVisible" title="冻结打手" width="450px">
       <p v-if="freezeRow" style="margin-bottom:16px">打手：<b>{{ freezeRow.nickname }}</b>（{{ freezeRow.phone || '-' }}）</p>
@@ -209,9 +313,9 @@
 </template>
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
-import { adminPlayerList, adminPlayerDetail, adminPlayerTransactions, adminPlayerApprove, adminPlayerReject, adminPlayerUpdateStatus, adminPlayerFreeze, adminPlayerUnfreeze, adminPlayerUpdate, csPlayerList, csPlayerDetail, csPlayerTransactions, csPlayerAudit, csPlayerFreeze, csPlayerUpdateNickname, adminOrderList, csOrderList } from '@/api/business'
+import { adminPlayerList, adminPlayerDetail, adminPlayerTransactions, adminPlayerApprove, adminPlayerReject, adminPlayerUpdateStatus, adminPlayerFreeze, adminPlayerUnfreeze, adminPlayerUpdate, adminPlayerAdjustBalance, adminPlayerResign, adminPlayerDelete, adminReferralSearch, adminPlayerReferrals, adminPlayerBindReferral, adminPlayerUpdateReferral, adminPlayerUnbindReferral, csPlayerList, csPlayerDetail, csPlayerTransactions, csPlayerAudit, csPlayerFreeze, csPlayerUpdateNickname, adminOrderList, csOrderList } from '@/api/business'
 import { useUserStore } from '@/stores/user'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
 import { WORK_STATUS_OPTIONS, workStatusMeta, formatActiveOrders, isPlayerRowDimmed } from '@/utils/playerWorkStatus'
 const userStore = useUserStore()
@@ -221,8 +325,15 @@ const query = reactive({ pageNum: 1, pageSize: 10, keyword: '', status: '', work
 const lastUpdatedAt = ref(null)
 const POLL_INTERVAL_MS = 30_000
 let pollTimer = null
-const statusMap = { PENDING: '待审核', ACTIVE: '正常', REJECTED: '已驳回', FROZEN: '已冻结' }
-const statusTagMap = { PENDING: 'warning', ACTIVE: 'success', REJECTED: 'danger', FROZEN: 'info' }
+const statusMap = { PENDING: '待审核', ACTIVE: '正常', REJECTED: '已驳回', FROZEN: '已冻结', RESIGNED: '已离职' }
+const statusTagMap = { PENDING: 'warning', ACTIVE: 'success', REJECTED: 'danger', FROZEN: 'info', RESIGNED: 'info' }
+function formatMoney(amount) {
+  const value = Number(amount || 0)
+  return value.toFixed(2)
+}
+function onStatusFilter(status) {
+  if (status === 'RESIGNED') query.workStatus = ''
+}
 function statusText(s) { return statusMap[s] || s }
 function statusTagType(s) { return statusTagMap[s] || '' }
 async function fetchData({ silent = false } = {}) {
@@ -303,9 +414,10 @@ const playerTransactions = ref([])
 const transactionTotal = ref(0)
 const transactionQuery = reactive({ pageNum: 1, pageSize: 5, playerId: null })
 const transactionTypeMap = {
-  ADMIN_RECHARGE: '管理员充值',
+  ADMIN_RECHARGE: '管理员补款',
   ADMIN_DEDUCT: '管理员扣款',
   INCOME: '收益入账',
+  REFERRAL: '转介绍分成',
   WITHDRAW: '提现申请',
   WITHDRAW_COMPLETE: '提现完成',
   WITHDRAW_REJECT: '提现驳回',
@@ -429,6 +541,215 @@ async function fetchPlayerOrders() {
   } finally { ordersLoading.value = false }
 }
 
+const fundVisible = ref(false)
+const fundSaving = ref(false)
+const fundPlayerLoading = ref(false)
+const fundPlayerOptions = ref([])
+const fundTags = ['订单补款', '奖励补款', '违规扣款', '售后扣款']
+const fundForm = reactive({ playerId: null, direction: 'ADD', amount: null, orderNo: '', remark: '' })
+const fundWallet = reactive({ balance: 0, pendingBalance: 0, frozenAmount: 0, depositPaymentNo: '' })
+const fundOrderHint = ref('')
+const fundOrderOk = ref(true)
+let fundSearchTimer = null
+
+function fundPlayerLabel(player) {
+  return `${player.nickname || '未命名'} / ${player.phone || '-'} / ID:${player.id}`
+}
+function openFundDialog(row) {
+  fundForm.playerId = row.id
+  fundForm.direction = 'ADD'
+  fundForm.amount = null
+  fundForm.orderNo = ''
+  fundForm.remark = ''
+  fundOrderHint.value = ''
+  fundOrderOk.value = true
+  fundPlayerOptions.value = [row]
+  fundVisible.value = true
+  loadFundWallet(row.id)
+}
+function searchFundPlayers(keyword) {
+  if (!keyword) return
+  clearTimeout(fundSearchTimer)
+  fundSearchTimer = setTimeout(async () => {
+    fundPlayerLoading.value = true
+    try {
+      const res = await adminPlayerList({ keyword, pageNum: 1, pageSize: 20, workStatus: '' })
+      const records = res.data?.records || []
+      const current = fundPlayerOptions.value.find(item => item.id === fundForm.playerId)
+      fundPlayerOptions.value = current && !records.some(item => item.id === current.id)
+        ? [current, ...records]
+        : records
+    } finally {
+      fundPlayerLoading.value = false
+    }
+  }, 300)
+}
+async function loadFundWallet(playerId) {
+  if (!playerId) return
+  const res = await adminPlayerDetail(playerId)
+  const data = res.data || {}
+  fundWallet.balance = data.balance || 0
+  fundWallet.pendingBalance = data.pendingBalance || 0
+  fundWallet.frozenAmount = data.frozenAmount || 0
+  fundWallet.depositPaymentNo = data.depositPaymentNo || ''
+}
+function appendFundTag(tag) {
+  if (fundForm.remark.includes(tag)) return
+  fundForm.remark = fundForm.remark ? `${fundForm.remark} ${tag}` : tag
+}
+async function lookupFundOrder() {
+  const orderNo = fundForm.orderNo.trim()
+  if (!orderNo) {
+    fundOrderHint.value = ''
+    fundOrderOk.value = true
+    return
+  }
+  const res = await adminOrderList({ orderNo, pageNum: 1, pageSize: 5 })
+  const exact = (res.data?.records || []).find(item => item.orderNo === orderNo)
+  fundOrderOk.value = !!exact
+  fundOrderHint.value = exact
+    ? `${exact.productName || '订单'} · ¥${exact.amount}`
+    : '未找到该订单'
+}
+async function submitFund() {
+  if (!fundForm.playerId) return ElMessage.warning('请选择打手')
+  if (!fundForm.amount || fundForm.amount <= 0) return ElMessage.warning('请填写调整金额')
+  if (!fundForm.remark.trim()) return ElMessage.warning('请填写调整原因')
+  if (fundForm.orderNo.trim() && !fundOrderOk.value) return ElMessage.warning('关联订单不存在')
+  const action = fundForm.direction === 'DEDUCT' ? '扣款' : '补款'
+  try {
+    await ElMessageBox.confirm(`确认${action} ¥${Number(fundForm.amount).toFixed(2)}？`, '资金调整', { type: 'warning' })
+  } catch {
+    return
+  }
+  fundSaving.value = true
+  try {
+    await adminPlayerAdjustBalance(fundForm.playerId, {
+      direction: fundForm.direction,
+      amount: fundForm.amount,
+      remark: fundForm.remark.trim(),
+      orderNo: fundForm.orderNo.trim() || undefined
+    })
+    ElMessage.success(`${action}成功`)
+    fundVisible.value = false
+    fetchData()
+    if (detailVisible.value && detailData.value?.id === fundForm.playerId) showDetail(fundForm.playerId)
+  } finally {
+    fundSaving.value = false
+  }
+}
+
+const referralVisible = ref(false)
+const referralPlayer = ref(null)
+const referralKeyword = ref('')
+const referralCandidates = ref([])
+const referralPick = ref(null)
+const referralRate = ref(5)
+const referralList = ref([])
+const referralLoading = ref(false)
+const referralSearching = ref(false)
+const referralSaving = ref(false)
+
+function openReferral(row) {
+  referralPlayer.value = row
+  referralKeyword.value = ''
+  referralCandidates.value = []
+  referralPick.value = null
+  referralRate.value = 5
+  referralVisible.value = true
+  loadReferrals()
+}
+async function loadReferrals() {
+  if (!referralPlayer.value) return
+  referralLoading.value = true
+  try {
+    const res = await adminPlayerReferrals(referralPlayer.value.id)
+    referralList.value = res.data || []
+  } finally {
+    referralLoading.value = false
+  }
+}
+async function searchReferralUsers() {
+  const keyword = referralKeyword.value.trim()
+  if (!keyword) return ElMessage.warning('请输入用户ID、手机号或昵称')
+  referralSearching.value = true
+  try {
+    const res = await adminReferralSearch(keyword)
+    referralCandidates.value = res.data || []
+    referralPick.value = referralCandidates.value.length === 1 ? referralCandidates.value[0] : null
+    if (!referralCandidates.value.length) ElMessage.warning('未找到客户')
+  } finally {
+    referralSearching.value = false
+  }
+}
+function onPickReferralUser(row) {
+  referralPick.value = row
+}
+async function submitReferral() {
+  if (!referralPick.value) return ElMessage.warning('请先查找并选择客户')
+  if (!referralRate.value || referralRate.value <= 0) return ElMessage.warning('请填写介绍比例')
+  referralSaving.value = true
+  try {
+    await adminPlayerBindReferral(referralPlayer.value.id, {
+      userId: referralPick.value.id,
+      ratePercent: referralRate.value
+    })
+    ElMessage.success('已绑定')
+    referralPick.value = null
+    referralCandidates.value = []
+    referralKeyword.value = ''
+    loadReferrals()
+  } finally {
+    referralSaving.value = false
+  }
+}
+async function editReferralRate(row) {
+  try {
+    const { value } = await ElMessageBox.prompt('介绍比例（%）', '修改比例', {
+      inputValue: String(row.ratePercent),
+      inputPattern: /^(100(\.0{1,2})?|([1-9]\d?|0)(\.\d{1,2})?)$/,
+      inputErrorMessage: '请输入大于0且不超过100的比例，最多两位小数'
+    })
+    const rate = Number(value)
+    if (!(rate > 0)) return ElMessage.warning('介绍比例需大于0')
+    await adminPlayerUpdateReferral(referralPlayer.value.id, row.id, { ratePercent: rate })
+    ElMessage.success('比例已更新')
+    loadReferrals()
+  } catch (err) {
+    if (err === 'cancel' || err === 'close') return
+  }
+}
+async function unbindReferral(row) {
+  try {
+    await ElMessageBox.confirm(`确认解绑 ${row.nickname || '该客户'}？已确认订单的介绍费不变。`, '解绑转介绍', { type: 'warning' })
+  } catch {
+    return
+  }
+  await adminPlayerUnbindReferral(referralPlayer.value.id, row.id)
+  ElMessage.success('已解绑')
+  loadReferrals()
+}
+async function handleResign(row) {
+  try {
+    await ElMessageBox.confirm(`确认让「${row.nickname || row.id}」离职？离职后不能接单、被指派和提现。`, '打手离职', { type: 'warning' })
+  } catch {
+    return
+  }
+  await adminPlayerResign(row.id)
+  ElMessage.success('已离职。筛选「已离职」后可以删除')
+  fetchData()
+}
+async function handleDelete(row) {
+  try {
+    await ElMessageBox.confirm(`确认删除「${row.nickname || row.id}」？仅已离职且订单、余额、提现都结清的打手可以删除。历史订单和资金流水会保留。`, '删除打手', { type: 'warning' })
+  } catch {
+    return
+  }
+  await adminPlayerDelete(row.id)
+  ElMessage.success('已删除')
+  fetchData()
+}
+
 onMounted(() => {
   fetchData()
   startPolling()
@@ -474,4 +795,21 @@ onBeforeUnmount(stopPolling)
 }
 .amount-positive { color: #f56c6c; font-weight: 600; }
 .amount-negative { color: #67c23a; font-weight: 600; }
+.fund-subtitle { margin: 0 0 16px; color: #909399; font-size: 13px; }
+.fund-modes { display: flex; gap: 12px; margin-bottom: 18px; }
+.fund-mode {
+  flex: 1; text-align: left; border: 1px solid #dcdfe6; background: #fff; border-radius: 8px; padding: 12px 14px; cursor: pointer;
+}
+.fund-mode b { display: block; font-size: 15px; color: #303133; }
+.fund-mode span { display: block; margin-top: 4px; color: #909399; font-size: 12px; }
+.fund-mode.active { border-color: #409eff; background: #ecf5ff; }
+.fund-mode.deduct.active { border-color: #f56c6c; background: #fef0f0; }
+.fund-snapshot { margin: 0 0 16px 96px; padding: 10px 12px; background: #f4f8ff; border-radius: 8px; color: #606266; font-size: 13px; }
+.fund-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.fund-hint { margin-top: 6px; font-size: 12px; color: #67c23a; }
+.fund-hint.error { color: #f56c6c; }
+.fund-foot-note { float: left; color: #909399; font-size: 12px; line-height: 32px; }
+.referral-search, .referral-add { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.referral-search .el-input { width: 280px; }
+.referral-candidates { margin-bottom: 8px; }
 </style>

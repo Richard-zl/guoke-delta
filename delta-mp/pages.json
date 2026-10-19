@@ -154,6 +154,14 @@
           "style": { "navigationBarTitleText": "邀请列表", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
         },
         {
+          "path": "referral/list",
+          "style": { "navigationBarTitleText": "转介绍客户", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
+          "path": "referral/detail",
+          "style": { "navigationBarTitleText": "介绍费明细", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
+        },
+        {
           "path": "invite/teammate",
           "style": { "navigationBarTitleText": "邀请队友", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
         },

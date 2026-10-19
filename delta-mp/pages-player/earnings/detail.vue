@@ -6,6 +6,7 @@
         <view class="left">
           <text class="desc">{{ item.type === 'INCOME' ? '订单收益' : TX_TYPE_MAP[item.type] || item.type }}</text>
           <text class="time">{{ item.createdAt }}</text>
+          <text v-if="item.remark && !item.remarkInfo" class="time">{{ item.remark }}</text>
           <view v-if="item.remarkInfo" class="remark-info">
             <text>订单金额: ¥{{ item.remarkInfo.orderAmount }}</text>
             <text>抽成: {{ item.remarkInfo.commissionRate }}% (¥{{ item.remarkInfo.commissionAmount }})</text>
@@ -31,7 +32,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import EmptyState from '@/components/EmptyState.vue'
 import { getEarningsDetail } from '@/api/player'
 
-const TX_TYPE_MAP = { PAY: '支付', REFUND: '退款', WITHDRAW: '提现', INCOME: '订单收益', RECHARGE: '充值' }
+const TX_TYPE_MAP = { PAY: '支付', REFUND: '退款', WITHDRAW: '提现', INCOME: '订单收益', RECHARGE: '充值', ADMIN_RECHARGE: '管理员补款', ADMIN_DEDUCT: '管理员扣款', REFERRAL: '转介绍分成' }
 const records = ref([])
 const pageNum = ref(1)
 const loading = ref(false)

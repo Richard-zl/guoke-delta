@@ -47,6 +47,8 @@ public class PlayerAuthController {
                     return R.fail(1004, "入驻申请已驳回，原因：" + player.getRejectReason());
                 case "FROZEN":
                     return R.fail(1005, "账号已被冻结");
+                case "RESIGNED":
+                    return R.fail(1006, "账号已离职，无法登录");
                 case "ACTIVE":
                     break;
                 default:

@@ -123,6 +123,28 @@ class RefundRequestServiceImplTest {
     }
 
     @Test
+    void markApproved_未选原因_拒绝() {
+        when(mapper.selectById(3L)).thenReturn(pendingRequest());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.markApproved(3L, 7L, " "));
+        assertEquals("请选择退款原因", ex.getMessage());
+        verify(mapper, never()).updateById(any(RefundRequest.class));
+    }
+
+    @Test
+    void markApproved_固定原因写入备注() {
+        when(mapper.selectById(3L)).thenReturn(pendingRequest());
+        when(mapper.updateById(any(RefundRequest.class))).thenReturn(1);
+
+        RefundRequest result = service.markApproved(3L, 7L, "无人接单");
+
+        assertEquals("APPROVED", result.getStatus());
+        assertEquals("无人接单", result.getOperatorRemark());
+        assertEquals(7L, result.getOperatorId());
+    }
+
+    @Test
     void markApproved_非PENDING_拒绝() {
         RefundRequest done = pendingRequest();
         done.setStatus("REJECTED");

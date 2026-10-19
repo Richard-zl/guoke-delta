@@ -77,6 +77,30 @@ export function adminPlayerUnfreeze(id) {
 export function adminPlayerUpdate(id, data) {
   return request({ url: `/admin/player/${id}`, method: 'put', data })
 }
+export function adminPlayerAdjustBalance(id, data) {
+  return request({ url: `/admin/player/${id}/balance`, method: 'put', data })
+}
+export function adminPlayerResign(id) {
+  return request({ url: `/admin/player/${id}/resign`, method: 'put' })
+}
+export function adminPlayerDelete(id) {
+  return request({ url: `/admin/player/${id}`, method: 'delete' })
+}
+export function adminReferralSearch(keyword) {
+  return request({ url: '/admin/player/referrals/search', method: 'get', params: { keyword } })
+}
+export function adminPlayerReferrals(id) {
+  return request({ url: `/admin/player/${id}/referrals`, method: 'get' })
+}
+export function adminPlayerBindReferral(id, data) {
+  return request({ url: `/admin/player/${id}/referrals`, method: 'post', data })
+}
+export function adminPlayerUpdateReferral(id, referralId, data) {
+  return request({ url: `/admin/player/${id}/referrals/${referralId}`, method: 'put', data })
+}
+export function adminPlayerUnbindReferral(id, referralId) {
+  return request({ url: `/admin/player/${id}/referrals/${referralId}`, method: 'delete' })
+}
 export function adminShowcaseList(params) {
   return request({ url: '/admin/player/showcase/list', method: 'get', params })
 }
@@ -144,14 +168,14 @@ export function csOrderAssign(orderId, playerId, playerId2) {
   }
   return request({ url, method: 'post' })
 }
-export function adminOrderRefund(orderId) {
-  return request({ url: `/admin/order/${orderId}/refund`, method: 'post' })
+export function adminOrderRefund(orderId, remark) {
+  return request({ url: `/admin/order/${orderId}/refund`, method: 'post', data: { remark } })
 }
 export function adminOrderConfirm(orderId) {
   return request({ url: `/admin/order/${orderId}/confirm`, method: 'post' })
 }
-export function csOrderRefund(orderId) {
-  return request({ url: `/cs/order/${orderId}/refund`, method: 'post' })
+export function csOrderRefund(orderId, remark) {
+  return request({ url: `/cs/order/${orderId}/refund`, method: 'post', data: { remark } })
 }
 export function csOrderConfirm(orderId) {
   return request({ url: `/cs/order/${orderId}/confirm`, method: 'post' })

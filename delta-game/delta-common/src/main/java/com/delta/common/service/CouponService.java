@@ -69,8 +69,41 @@ public class CouponService {
         if (coupon.getStatus() != null && coupon.getStatus() != 1) {
             throw new BusinessException("该优惠券模板已停用");
         }
+        CouponDiscountRules.assertGrantable(coupon);
         grantCouponToUser(userId, coupon);
         log.info("管理员发放优惠券给用户: {} -> {}, remark={}", userId, coupon.getName(), remark);
+    }
+
+    /**
+     * 按折扣发放。只能是 9.0 到 9.9 折，同一折扣复用已有模板。
+     */
+    @Transactional
+    public void adminGrantDiscount(Long userId, BigDecimal discountZhe, String remark) {
+        BigDecimal rate = CouponDiscountRules.toRate(discountZhe);
+        Coupon coupon = findOrCreateDiscountTemplate(rate);
+        grantCouponToUser(userId, coupon);
+        log.info("管理员发放折扣券给用户: {} -> {}折, remark={}", userId, discountZhe.stripTrailingZeros().toPlainString(), remark);
+    }
+
+    private Coupon findOrCreateDiscountTemplate(BigDecimal rate) {
+        List<Coupon> existing = couponMapper.selectList(new LambdaQueryWrapper<Coupon>()
+                .eq(Coupon::getType, CouponDiscountRules.TYPE_DISCOUNT)
+                .eq(Coupon::getStatus, 1));
+        for (Coupon coupon : existing) {
+            if (coupon.getDiscountRate() != null && coupon.getDiscountRate().compareTo(rate) == 0) {
+                return coupon;
+            }
+        }
+        Coupon created = new Coupon();
+        created.setName(rate.multiply(BigDecimal.TEN).stripTrailingZeros().toPlainString() + "折优惠券");
+        created.setType(CouponDiscountRules.TYPE_DISCOUNT);
+        created.setDiscountRate(rate);
+        created.setMinAmount(BigDecimal.ZERO);
+        created.setValidDays(31);
+        created.setStatus(1);
+        created.setCreatedAt(LocalDateTime.now());
+        couponMapper.insert(created);
+        return created;
     }
 
     @Transactional
@@ -181,6 +214,7 @@ public class CouponService {
         BigDecimal originalAmount = inferOriginalAmount(finalAmount, coupon);
         view.setCouponName(coupon.getName());
         view.setCouponType(coupon.getType());
+        view.setDiscountRate(CouponDiscountRules.resolveRate(coupon));
         view.setOriginalAmount(originalAmount);
         view.setCouponDiscountAmount(originalAmount.subtract(finalAmount).max(BigDecimal.ZERO));
         return view;
@@ -189,17 +223,7 @@ public class CouponService {
     /** 由折后价反推原价 */
     public static BigDecimal inferOriginalAmount(BigDecimal finalAmount, Coupon coupon) {
         if (finalAmount == null) return BigDecimal.ZERO;
-        BigDecimal original = finalAmount;
-        if ("DISCOUNT_9".equals(coupon.getType())) {
-            original = finalAmount.divide(new BigDecimal("0.9"), 2, RoundingMode.HALF_UP);
-        } else if ("DISCOUNT_8".equals(coupon.getType())) {
-            original = finalAmount.divide(new BigDecimal("0.8"), 2, RoundingMode.HALF_UP);
-        } else if ("DISCOUNT_75".equals(coupon.getType())) {
-            original = finalAmount.divide(new BigDecimal("0.75"), 2, RoundingMode.HALF_UP);
-        } else if ("CASH_5".equals(coupon.getType())) {
-            original = finalAmount.add(new BigDecimal("5"));
-        }
-        return normalizeMoneyStatic(original);
+        return normalizeMoneyStatic(CouponDiscountRules.inferOriginal(finalAmount, coupon));
     }
 
     private BigDecimal normalizeMoney(BigDecimal amount) {

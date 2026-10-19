@@ -60,8 +60,34 @@
       <view v-if="(order.status==='PAID'||order.status==='PENDING') && !order.refundPending" class="btn" @click="goAssign">指派接单员</view>
       <view v-if="order.refundPending" class="btn-ghost">退款审核中</view>
       <view v-if="order.status==='COMPLETED'" class="btn" @click="doConfirm">结单</view>
-      <view v-if="['ASSIGNED','IN_PROGRESS'].includes(order.status)" class="btn-warn" @click="doRefund">退款</view>
+      <view v-if="['ASSIGNED','IN_PROGRESS'].includes(order.status)" class="btn-warn" @click="openRefund">退款</view>
       <view class="btn-ghost" @click="goChat">联系用户</view>
+    </view>
+
+    <view v-if="refundVisible" class="refund-mask" @click="closeRefund">
+      <view class="refund-sheet" @click.stop>
+        <text class="sheet-title">选择退款原因</text>
+        <text class="sheet-tip">订单将被取消并退回支付金额</text>
+        <view
+          v-for="item in refundReasons"
+          :key="item"
+          class="reason-item"
+          :class="{ active: refundReason === item }"
+          @click="refundReason = item"
+        >{{ item }}</view>
+        <view class="reason-item" :class="{ active: refundReason === '其他' }" @click="refundReason = '其他'">其他</view>
+        <input
+          v-if="refundReason === '其他'"
+          v-model="refundCustom"
+          class="reason-input"
+          maxlength="100"
+          placeholder="请输入退款原因"
+        />
+        <view class="sheet-actions">
+          <view class="btn-ghost" @click="closeRefund">取消</view>
+          <view class="btn" @click="submitRefund">确认退款</view>
+        </view>
+      </view>
     </view>
   </view>
 
@@ -86,6 +112,10 @@ function statusLabel(s) { return statusLabelMap[s] || s }
 const order = ref(null)
 const progressList = ref([])
 const orderId = ref('')
+const refundVisible = ref(false)
+const refundReason = ref('')
+const refundCustom = ref('')
+const refundReasons = ['无人接单', '下错订单', '更换订单', '客人原因', '投诉退款', '重复下单', '打手无法服务', '协商一致']
 const parsedExtra = computed(() => {
   const o = order.value
   if (!o) return []
@@ -144,22 +174,34 @@ async function loadDetail() {
   order.value = detailRes.data
   progressList.value = progressRes.data || []
 }
-async function doRefund() {
-  uni.showModal({
-    title: '提示',
-    content: '确定为该订单退款？订单将被取消并退回支付金额。',
-    success: async (r) => {
-      if (r.confirm) {
-        try {
-          await csRefundOrder(orderId.value)
-          uni.showToast({ title: '退款已提交' })
-          await loadDetail()
-        } catch (e) {
-          uni.showToast({ title: e?.data?.msg || '操作失败', icon: 'none' })
-        }
-      }
+function openRefund() {
+  refundReason.value = ''
+  refundCustom.value = ''
+  refundVisible.value = true
+}
+function closeRefund() {
+  refundVisible.value = false
+}
+async function submitRefund() {
+  let remark = refundReason.value
+  if (!remark) {
+    return uni.showToast({ title: '请选择退款原因', icon: 'none' })
+  }
+  if (remark === '其他') {
+    const custom = refundCustom.value.trim()
+    if (!custom) {
+      return uni.showToast({ title: '请填写其他原因', icon: 'none' })
     }
-  })
+    remark = `其他：${custom}`
+  }
+  try {
+    await csRefundOrder(orderId.value, remark)
+    refundVisible.value = false
+    uni.showToast({ title: '退款已提交' })
+    await loadDetail()
+  } catch (e) {
+    uni.showToast({ title: e?.data?.msg || '操作失败', icon: 'none' })
+  }
 }
 async function doConfirm() {
   uni.showModal({
@@ -236,4 +278,25 @@ async function doConfirm() {
 .btn { padding: 16rpx 40rpx; background: linear-gradient(135deg, #ff4544, #e63939); color: #ffffff; font-weight:bold; font-size: 28rpx; border-radius: 999rpx; }
 .btn-ghost { padding: 16rpx 40rpx; border: 1rpx solid rgba(255,69,68,0.4); color: #ff4544; font-size: 28rpx; border-radius: 999rpx; }
 .btn-warn { padding: 16rpx 40rpx; border: 1rpx solid rgba(238,10,36,0.4); color: #ee0a24; font-size: 28rpx; border-radius: 999rpx; }
+.refund-mask {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  display: flex; align-items: flex-end; z-index: 20;
+}
+.refund-sheet {
+  width: 100%; background: #fff; border-radius: 24rpx 24rpx 0 0;
+  padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
+  max-height: 80vh; overflow-y: auto; box-sizing: border-box;
+}
+.sheet-title { display: block; font-size: 32rpx; font-weight: bold; color: #1e293b; }
+.sheet-tip { display: block; margin: 8rpx 0 20rpx; font-size: 24rpx; color: #94a3b8; }
+.reason-item {
+  padding: 20rpx 24rpx; margin-bottom: 12rpx; border-radius: 12rpx;
+  background: #f8fafc; font-size: 28rpx; color: #1e293b;
+  &.active { background: rgba(255,69,68,0.1); color: #ff4544; font-weight: bold; }
+}
+.reason-input {
+  margin-top: 8rpx; padding: 20rpx 24rpx; background: #f8fafc;
+  border-radius: 12rpx; font-size: 28rpx;
+}
+.sheet-actions { display: flex; justify-content: flex-end; gap: 20rpx; margin-top: 28rpx; }
 </style>

@@ -77,8 +77,11 @@ public class WithdrawController {
     public R<Void> apply(@RequestBody WithdrawRequest req) {
         Long playerId = SecurityUtils.getUserId();
 
-        // 0. 冻结期间不允许提现
+        // 0. 离职或冻结期间不允许提现
         Player player = playerService.getById(playerId);
+        if (player != null && "RESIGNED".equals(player.getStatus())) {
+            throw new BusinessException("账号已离职，无法提现");
+        }
         if (player != null && "FROZEN".equals(player.getStatus())
                 && player.getFrozenUntil() != null && player.getFrozenUntil().isAfter(LocalDateTime.now())) {
             throw new BusinessException("账号已被冻结，冻结期间无法提现");

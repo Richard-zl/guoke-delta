@@ -16,7 +16,7 @@ export const getCsOrderList = (params) => get('/cs/order/list', params, CS)
 export const getCsOrderDetail = (id) => get(`/cs/order/${id}`, {}, CS)
 export const getCsOrderProgress = (id) => get(`/cs/order/${id}/progress`, {}, CS)
 export const assignOrder = (orderId, playerId) => post(`/cs/order/${orderId}/assign/${playerId}`, {}, CS)
-export const csRefundOrder = (orderId) => post(`/cs/order/${orderId}/refund`, {}, CS)
+export const csRefundOrder = (orderId, remark) => post(`/cs/order/${orderId}/refund`, { remark }, CS)
 export const csConfirmOrder = (orderId) => post(`/cs/order/${orderId}/confirm`, {}, CS)
 
 // ========== 投诉管理 ==========

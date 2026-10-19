@@ -16,6 +16,7 @@ import com.delta.common.security.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/cs/order")
@@ -79,8 +80,9 @@ public class CsOrderController {
     }
 
     @PostMapping("/{id}/refund")
-    public R<Void> refund(@PathVariable Long id) {
-        orderService.csCancelOrder(id, SecurityUtils.getUserId());
+    public R<Void> refund(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
+        String remark = body != null ? body.get("remark") : null;
+        orderService.csCancelOrder(id, SecurityUtils.getUserId(), remark);
         return R.ok();
     }
 

@@ -7,6 +7,7 @@ import com.delta.common.exception.BusinessException;
 import com.delta.order.entity.Order;
 import com.delta.order.entity.RefundRequest;
 import com.delta.order.mapper.RefundRequestMapper;
+import com.delta.order.service.RefundApproveReasons;
 import com.delta.order.service.RefundRequestService;
 import org.springframework.stereotype.Service;
 
@@ -77,7 +78,7 @@ public class RefundRequestServiceImpl extends ServiceImpl<RefundRequestMapper, R
         RefundRequest req = requirePending(requestId);
         req.setStatus("APPROVED");
         req.setOperatorId(operatorId);
-        req.setOperatorRemark(remark);
+        req.setOperatorRemark(RefundApproveReasons.normalize(remark));
         req.setProcessedAt(LocalDateTime.now());
         updateById(req);
         return req;

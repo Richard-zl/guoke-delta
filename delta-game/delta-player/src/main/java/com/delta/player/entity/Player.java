@@ -44,9 +44,15 @@ public class Player extends BaseEntity {
     @TableField(exist = false)
     private Boolean onWall;
 
-    /** 余额（非DB字段） */
+    /** 可提现余额（非DB字段） */
     @TableField(exist = false)
     private BigDecimal balance;
+    /** 待入账（非DB字段） */
+    @TableField(exist = false)
+    private BigDecimal pendingBalance;
+    /** 提现冻结金额（非DB字段） */
+    @TableField(exist = false)
+    private BigDecimal frozenAmount;
     /** 完成订单数（非DB字段） */
     @TableField(exist = false)
     private Integer completedOrders;

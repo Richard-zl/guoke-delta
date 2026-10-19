@@ -179,8 +179,11 @@ const hasCoupon = computed(() => {
 })
 
 const couponTypeLabel = computed(() => {
-  if (!order.value?.couponType) return ''
-  return getCouponTypeLabel({ couponType: order.value.couponType, discountRate: inferRate(order.value.couponType) })
+  if (!order.value?.couponType && !order.value?.couponDiscountRate) return ''
+  return getCouponTypeLabel({
+    couponType: order.value.couponType,
+    discountRate: Number(order.value.couponDiscountRate) || inferRate(order.value.couponType)
+  })
 })
 
 function inferRate(type) {

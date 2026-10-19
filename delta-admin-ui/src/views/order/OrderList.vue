@@ -259,6 +259,28 @@
         <el-button @click="assignVisible = false">取消</el-button>
       </div>
     </el-dialog>
+
+    <el-dialog v-model="refundVisible" title="订单退款" width="480px" @closed="resetRefund">
+      <p class="refund-tip">订单将被取消并退回支付金额，请选择退款原因。</p>
+      <div class="reason-list">
+        <el-radio-group v-model="refundReason">
+          <el-radio v-for="item in refundReasons" :key="item" :value="item">{{ item }}</el-radio>
+          <el-radio value="其他">其他</el-radio>
+        </el-radio-group>
+      </div>
+      <el-input
+        v-if="refundReason === '其他'"
+        v-model="refundCustom"
+        class="custom-reason"
+        maxlength="100"
+        show-word-limit
+        placeholder="请输入退款原因"
+      />
+      <template #footer>
+        <el-button @click="refundVisible = false">取消</el-button>
+        <el-button type="primary" :loading="refundSubmitting" @click="submitRefund">确认退款</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 <script setup>
@@ -737,12 +759,56 @@ async function submitAssign() {
   fetchData()
 }
 
-async function handleRefund(row) {
-  await ElMessageBox.confirm('确定为该订单退款？订单将被取消并退回支付金额。', '退款确认', { type: 'warning' })
-  const fn = isAdmin ? adminOrderRefund : csOrderRefund
-  await fn(row.id)
-  ElMessage.success('退款已提交')
-  fetchData()
+const refundReasons = ['无人接单', '下错订单', '更换订单', '客人原因', '投诉退款', '重复下单', '打手无法服务', '协商一致']
+const refundVisible = ref(false)
+const refundOrderId = ref(null)
+const refundReason = ref('')
+const refundCustom = ref('')
+const refundSubmitting = ref(false)
+
+function handleRefund(row) {
+  refundOrderId.value = row.id
+  refundReason.value = ''
+  refundCustom.value = ''
+  refundVisible.value = true
+}
+
+function resetRefund() {
+  refundOrderId.value = null
+  refundReason.value = ''
+  refundCustom.value = ''
+}
+
+function buildRefundRemark() {
+  if (refundReason.value === '其他') {
+    const custom = refundCustom.value.trim()
+    return custom ? `其他：${custom}` : ''
+  }
+  return refundReason.value
+}
+
+async function submitRefund() {
+  if (!refundReason.value) {
+    ElMessage.warning('请选择退款原因')
+    return
+  }
+  const remark = buildRefundRemark()
+  if (!remark) {
+    ElMessage.warning('请填写其他原因')
+    return
+  }
+  refundSubmitting.value = true
+  try {
+    const fn = isAdmin ? adminOrderRefund : csOrderRefund
+    await fn(refundOrderId.value, remark)
+    ElMessage.success('退款已提交')
+    refundVisible.value = false
+    fetchData()
+  } catch {
+    // 拦截器已提示错误
+  } finally {
+    refundSubmitting.value = false
+  }
 }
 
 onMounted(fetchData)
@@ -755,4 +821,8 @@ onMounted(fetchData)
 .detail-actions { margin-top: 16px; text-align: right; }
 .progress-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .progress-image { width: 72px; height: 72px; border-radius: 6px; overflow: hidden; }
+.refund-tip { margin: 0 0 16px; color: #606266; font-size: 14px; }
+.reason-list :deep(.el-radio-group) { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.reason-list :deep(.el-radio) { margin-right: 0; height: 24px; }
+.custom-reason { margin-top: 12px; }
 </style>

@@ -63,6 +63,14 @@ public class Order {
     private LocalDateTime settleTime;
     /** 预计入账时间；settled=2 时有效 */
     private LocalDateTime settleAvailableAt;
+    /** 确认时的转介绍打手；没有介绍关系时为空 */
+    private Long referralPlayerId;
+    /** 确认时的介绍比例 */
+    private BigDecimal referralRate;
+    /** 实际介绍费 */
+    private BigDecimal referralAmount;
+    /** 已扣回的介绍费 */
+    private BigDecimal referralClawedAmount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -78,6 +86,10 @@ public class Order {
     /** 优惠券类型（非DB字段） */
     @TableField(exist = false)
     private String couponType;
+
+    /** 优惠券折扣率（非DB字段），9.5 折为 0.95 */
+    @TableField(exist = false)
+    private BigDecimal couponDiscountRate;
 
     /** 打手昵称（非DB字段，列表展示用） */
     @TableField(exist = false)

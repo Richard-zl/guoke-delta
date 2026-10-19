@@ -63,8 +63,17 @@ public class OpLogAspect {
         // 提取目标ID
         extractTarget(joinPoint, record);
 
-        // 详情
+        // 详情：业务方法可写入 opLogDetail，便于资金调整等操作溯源
         record.setDetail(opLog.operation());
+        try {
+            ServletRequestAttributes detailAttrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (detailAttrs != null) {
+                Object custom = detailAttrs.getRequest().getAttribute("opLogDetail");
+                if (custom instanceof String text && !text.isBlank()) {
+                    record.setDetail(text);
+                }
+            }
+        } catch (Exception ignored) {}
 
         // 请求IP
         try {

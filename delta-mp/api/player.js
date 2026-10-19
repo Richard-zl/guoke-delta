@@ -39,6 +39,8 @@ export const completeWork = (orderId, data = {}) => post(`/player/work/${orderId
 // ========== 收益 ==========
 export const getEarningsSummary = () => get('/player/earnings/summary', {}, { role: 'player' })
 export const getEarningsDetail = (params) => get('/player/earnings/detail', params, { role: 'player' })
+export const getReferralCustomers = () => get('/player/referral/customers', {}, { role: 'player' })
+export const getReferralFees = (userId) => get(`/player/referral/customers/${userId}/fees`, {}, { role: 'player' })
 
 // ========== 提现 ==========
 export const getWithdrawWindow = () => get('/player/withdraw/window', {}, { role: 'player' })

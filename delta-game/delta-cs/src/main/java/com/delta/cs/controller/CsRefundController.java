@@ -58,7 +58,7 @@ public class CsRefundController {
         Long operatorId = SecurityUtils.getUserId();
         String remark = body != null ? body.get("remark") : null;
         RefundRequest req = refundRequestService.markApproved(id, operatorId, remark);
-        orderService.refundAfterReview(req.getOrderId(), operatorId);
+        orderService.refundAfterReview(req.getOrderId(), operatorId, req.getOperatorRemark());
         return R.ok();
     }
 

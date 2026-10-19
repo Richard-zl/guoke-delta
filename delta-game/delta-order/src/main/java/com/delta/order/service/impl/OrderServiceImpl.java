@@ -16,6 +16,8 @@ import com.delta.order.entity.OrderPlayer;
 import com.delta.order.entity.OrderProgress;
 import com.delta.order.mapper.OrderMapper;
 import com.delta.order.service.OrderPlayerService;
+import com.delta.common.service.CouponDiscountRules;
+import com.delta.order.service.RefundApproveReasons;
 import com.delta.order.service.OrderProgressService;
 import com.delta.order.service.OrderPriceResolver;
 import com.delta.order.service.OrderService;
@@ -221,7 +223,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void csCancelOrder(Long orderId, Long operatorId) {
+    public void csCancelOrder(Long orderId, Long operatorId, String reason) {
         Order order = getById(orderId);
         if (order == null) throw new BusinessException("订单不存在");
         String status = order.getStatus();
@@ -229,22 +231,23 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 && !OrderStatusEnum.IN_PROGRESS.name().equals(status)) {
             throw new BusinessException("当前状态不允许退款");
         }
+        String reasonText = RefundApproveReasons.normalize(reason);
         Long playerId = order.getPlayerId();
         order.setPlayerId(null);
         order.setPlayerName(null);
-        transition(order, OrderStatusEnum.REFUNDING, "CS", operatorId, "客服操作退款");
+        transition(order, OrderStatusEnum.REFUNDING, "CS", operatorId, "客服操作退款：" + reasonText);
         eventPublisher.publishEvent(new BusinessEvent(this, "ORDER_CANCEL_REFUND",
                 "CS", operatorId, orderId, "客服操作退款处理中"));
-        refundRequestService.closePendingAsApproved(orderId, operatorId, "客服一键退款");
+        refundRequestService.closePendingAsApproved(orderId, operatorId, reasonText);
         if (playerId != null) {
             eventPublisher.publishEvent(new BusinessEvent(this, "ORDER_REFUNDED",
-                    "PLAYER", playerId, orderId, "订单已退款取消"));
+                    "PLAYER", playerId, orderId, "订单已退款取消（" + reasonText + "）"));
         }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void refundAfterReview(Long orderId, Long operatorId) {
+    public void refundAfterReview(Long orderId, Long operatorId, String reason) {
         Order order = getById(orderId);
         if (order == null) throw new BusinessException("订单不存在");
         String status = order.getStatus();
@@ -257,14 +260,15 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             order.setPlayerId(null);
             order.setPlayerName(null);
         }
-        transition(order, OrderStatusEnum.REFUNDING, "CS", operatorId, "客服同意退款");
+        String reasonText = reason == null ? "" : reason;
+        transition(order, OrderStatusEnum.REFUNDING, "CS", operatorId, "客服同意退款：" + reasonText);
         eventPublisher.publishEvent(new BusinessEvent(this, "ORDER_CANCEL_REFUND",
                 "CS", operatorId, orderId, "订单退款处理中"));
         eventPublisher.publishEvent(new BusinessEvent(this, "REFUND_APPROVED",
-                "USER", order.getUserId(), orderId, "退款申请已通过，款项将原路退回"));
+                "USER", order.getUserId(), orderId, "退款申请已通过（" + reasonText + "），款项将原路退回"));
         if (playerId != null) {
             eventPublisher.publishEvent(new BusinessEvent(this, "REFUND_APPROVED",
-                    "PLAYER", playerId, orderId, "用户退款已通过，订单已取消"));
+                    "PLAYER", playerId, orderId, "用户退款已通过（" + reasonText + "），订单已取消"));
         }
     }
 
@@ -651,18 +655,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
     }
 
-    /** 根据优惠券类型计算折后金额 */
+    /** 根据优惠券折扣率计算折后金额。已发出的旧券仍按原类型折扣。 */
     private BigDecimal applyCouponDiscount(BigDecimal serverPrice, Coupon coupon) {
-        BigDecimal finalAmount = serverPrice;
-        if ("DISCOUNT_9".equals(coupon.getType())) {
-            finalAmount = serverPrice.multiply(new BigDecimal("0.9"));
-        } else if ("DISCOUNT_8".equals(coupon.getType())) {
-            finalAmount = serverPrice.multiply(new BigDecimal("0.8"));
-        } else if ("DISCOUNT_75".equals(coupon.getType())) {
-            finalAmount = serverPrice.multiply(new BigDecimal("0.75"));
-        } else if ("CASH_5".equals(coupon.getType())) {
-            finalAmount = serverPrice.subtract(new BigDecimal("5"));
-        }
+        BigDecimal finalAmount = CouponDiscountRules.discount(serverPrice, coupon);
         if (finalAmount.compareTo(BigDecimal.ZERO) < 0) {
             finalAmount = BigDecimal.ZERO;
         }

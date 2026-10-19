@@ -171,9 +171,16 @@ public class AdminUserController {
     @OpLog(module = "user", operation = "发放优惠券")
     @PostMapping("/{id}/coupon")
     public R<Void> grantCoupon(@PathVariable Long id,
-                               @RequestParam Long couponId,
+                               @RequestParam(required = false) Long couponId,
+                               @RequestParam(required = false) BigDecimal discountZhe,
                                @RequestParam(required = false) String remark) {
-        couponService.adminGrantCoupon(id, couponId, remark);
+        if (discountZhe != null) {
+            couponService.adminGrantDiscount(id, discountZhe, remark);
+        } else if (couponId != null) {
+            couponService.adminGrantCoupon(id, couponId, remark);
+        } else {
+            throw new BusinessException("请选择折扣");
+        }
         return R.ok();
     }
 

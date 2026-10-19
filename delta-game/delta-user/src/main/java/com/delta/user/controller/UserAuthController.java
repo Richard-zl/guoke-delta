@@ -133,6 +133,9 @@ public class UserAuthController {
         if ("FROZEN".equals(status)) {
             return R.fail(1005, "账号已被冻结");
         }
+        if ("RESIGNED".equals(status)) {
+            return R.fail(1006, "账号已离职，无法登录");
+        }
         if (!"ACTIVE".equals(status)) {
             return R.fail("打手状态异常");
         }

@@ -9,6 +9,7 @@ import com.delta.order.service.OrderService;
 import com.delta.pay.service.TransactionService;
 import com.delta.player.entity.PlayerWallet;
 import com.delta.player.service.PlayerIncomeService;
+import com.delta.player.service.PlayerReferralRules;
 import com.delta.player.service.PlayerWalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +22,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 打手收入服务：定时释放待入账；仲裁退款先扣待入账再扣余额。
@@ -92,9 +95,13 @@ public class PlayerIncomeServiceImpl implements PlayerIncomeService {
             return false;
         }
 
-        // 全部 settleAmount 为 0/null：只改订单状态
+        BigDecimal referralRemain = PlayerReferralRules.remaining(
+                order.getReferralAmount(), order.getReferralClawedAmount());
+        boolean releaseReferral = order.getReferralPlayerId() != null && referralRemain.signum() > 0;
+
+        // 全部 settleAmount 为 0/null 且没有介绍费：只改订单状态
         boolean allZero = players.stream().allMatch(op -> amountOrZero(op.getSettleAmount()).signum() <= 0);
-        if (allZero) {
+        if (allZero && !releaseReferral) {
             order.setSettled(1);
             order.setSettleTime(now);
             orderService.updateById(order);
@@ -102,32 +109,47 @@ public class PlayerIncomeServiceImpl implements PlayerIncomeService {
             return true;
         }
 
-        // 预检：每人 pendingBalance >= settleAmount
-        List<ReleaseItem> items = new ArrayList<>();
+        // 预检：同一人的接单收入和介绍费加在一起，pending 必须够
+        Map<Long, BigDecimal> required = new HashMap<>();
+        List<OrderPlayer> paying = new ArrayList<>();
         for (OrderPlayer op : players) {
             BigDecimal amount = amountOrZero(op.getSettleAmount());
             if (amount.signum() <= 0) {
                 continue;
             }
-            PlayerWallet wallet = playerWalletService.getByPlayerId(op.getPlayerId());
+            required.merge(op.getPlayerId(), amount, BigDecimal::add);
+            paying.add(op);
+        }
+        if (releaseReferral) {
+            required.merge(order.getReferralPlayerId(), referralRemain, BigDecimal::add);
+        }
+
+        Map<Long, PlayerWallet> wallets = new HashMap<>();
+        for (Map.Entry<Long, BigDecimal> entry : required.entrySet()) {
+            PlayerWallet wallet = playerWalletService.getByPlayerId(entry.getKey());
             if (wallet == null) {
-                log.error("待入账释放跳过: 钱包不存在, orderId={}, playerId={}, settleAmount={}",
-                        orderId, op.getPlayerId(), amount);
+                log.error("待入账释放跳过: 钱包不存在, orderId={}, playerId={}, need={}",
+                        orderId, entry.getKey(), entry.getValue());
                 return false;
             }
             BigDecimal pending = amountOrZero(wallet.getPendingBalance());
-            if (pending.compareTo(amount) < 0) {
-                log.error("待入账释放跳过: pending 不足, orderId={}, playerId={}, pending={}, settleAmount={}",
-                        orderId, op.getPlayerId(), pending, amount);
+            if (pending.compareTo(entry.getValue()) < 0) {
+                log.error("待入账释放跳过: pending 不足, orderId={}, playerId={}, pending={}, need={}",
+                        orderId, entry.getKey(), pending, entry.getValue());
                 return false;
             }
-            items.add(new ReleaseItem(op, wallet, amount));
+            wallets.put(entry.getKey(), wallet);
         }
 
-        // 入账：pending→balance，写 INCOME，发通知
+        List<ReleaseItem> items = new ArrayList<>();
+        for (OrderPlayer op : paying) {
+            items.add(new ReleaseItem(op, wallets.get(op.getPlayerId()), amountOrZero(op.getSettleAmount())));
+        }
+
+        // 入账：pending→balance，写 INCOME，发通知。同一钱包对象连续扣，介绍费不会被接单收入覆盖。
         for (ReleaseItem item : items) {
-            PlayerWallet wallet = item.wallet;
-            BigDecimal amount = item.amount;
+            PlayerWallet wallet = item.wallet();
+            BigDecimal amount = item.amount();
             BigDecimal pending = amountOrZero(wallet.getPendingBalance());
             BigDecimal balanceBefore = amountOrZero(wallet.getBalance());
             BigDecimal totalIncome = amountOrZero(wallet.getTotalIncome());
@@ -137,21 +159,37 @@ public class PlayerIncomeServiceImpl implements PlayerIncomeService {
             wallet.setTotalIncome(totalIncome.add(amount));
             playerWalletService.updateById(wallet);
 
-            transactionService.record("INCOME", "PLAYER", item.op.getPlayerId(), amount,
+            transactionService.record("INCOME", "PLAYER", item.op().getPlayerId(), amount,
                     balanceBefore, wallet.getBalance(), orderId, null, null, "待入账到期释放");
 
-            item.op.setSettledAt(now);
-            orderPlayerService.updateById(item.op);
+            item.op().setSettledAt(now);
+            orderPlayerService.updateById(item.op());
 
             eventPublisher.publishEvent(new BusinessEvent(this, "INCOME_SETTLED",
-                    "PLAYER", item.op.getPlayerId(), orderId,
+                    "PLAYER", item.op().getPlayerId(), orderId,
                     "订单已结算，您的分成收入 " + amount.toPlainString() + " 元已到账"));
+        }
+
+        if (releaseReferral) {
+            PlayerWallet wallet = wallets.get(order.getReferralPlayerId());
+            BigDecimal pending = amountOrZero(wallet.getPendingBalance());
+            BigDecimal balanceBefore = amountOrZero(wallet.getBalance());
+            wallet.setPendingBalance(pending.subtract(referralRemain));
+            wallet.setBalance(balanceBefore.add(referralRemain));
+            wallet.setTotalIncome(amountOrZero(wallet.getTotalIncome()).add(referralRemain));
+            playerWalletService.updateById(wallet);
+            String remark = "转介绍分成，订单" + order.getOrderNo() + "，介绍费¥" + referralRemain.toPlainString();
+            transactionService.record(PlayerReferralRules.TX_REFERRAL, "PLAYER", order.getReferralPlayerId(),
+                    referralRemain, balanceBefore, wallet.getBalance(), orderId, null, null, remark);
+            eventPublisher.publishEvent(new BusinessEvent(this, "REFERRAL_SETTLED",
+                    "PLAYER", order.getReferralPlayerId(), orderId,
+                    "转介绍分成 " + referralRemain.toPlainString() + " 元已到账"));
         }
 
         order.setSettled(1);
         order.setSettleTime(now);
         orderService.updateById(order);
-        log.info("待入账释放成功: orderId={}, players={}", orderId, items.size());
+        log.info("待入账释放成功: orderId={}, players={}, referral={}", orderId, items.size(), referralRemain);
         return true;
     }
 
@@ -205,6 +243,7 @@ public class PlayerIncomeServiceImpl implements PlayerIncomeService {
         if (remain.compareTo(BigDecimal.ZERO) > 0) {
             deductBalance(order, playerId, remain, refundAmount);
         }
+        clawReferral(order, refundAmount);
     }
 
     /**
@@ -267,6 +306,49 @@ public class PlayerIncomeServiceImpl implements PlayerIncomeService {
                 balanceBefore, wallet.getBalance(), order.getId(), null, null,
                 "投诉仲裁退款扣除收益，订单金额退款：" + refundAmount);
         log.info("投诉仲裁退款，已从打手{}钱包扣除{}，orderId={}", playerId, deduction, order.getId());
+    }
+
+    /**
+     * 按退款占订单金额的比例扣回介绍费。
+     * 待入账时扣 pending，已入账时扣可提现余额。扣不到的部分不再补扣。
+     */
+    private void clawReferral(Order order, BigDecimal refundAmount) {
+        if (order.getReferralPlayerId() == null) {
+            return;
+        }
+        BigDecimal due = PlayerReferralRules.clawbackDue(
+                order.getAmount(), order.getReferralAmount(), order.getReferralClawedAmount(), refundAmount);
+        if (due.signum() <= 0) {
+            return;
+        }
+        boolean pendingPhase = order.getSettled() != null && order.getSettled() == 2;
+        PlayerWallet wallet = playerWalletService.getByPlayerId(order.getReferralPlayerId());
+        if (wallet == null) {
+            log.warn("转介绍扣回跳过: 钱包不存在, playerId={}, orderId={}", order.getReferralPlayerId(), order.getId());
+            return;
+        }
+        BigDecimal before = pendingPhase
+                ? amountOrZero(wallet.getPendingBalance())
+                : amountOrZero(wallet.getBalance());
+        BigDecimal actual = due.min(before);
+        if (actual.signum() <= 0) {
+            log.warn("转介绍扣回跳过: 余额不足, playerId={}, orderId={}, due={}",
+                    order.getReferralPlayerId(), order.getId(), due);
+            return;
+        }
+        if (pendingPhase) {
+            wallet.setPendingBalance(before.subtract(actual));
+        } else {
+            wallet.setBalance(before.subtract(actual));
+        }
+        playerWalletService.updateById(wallet);
+        order.setReferralClawedAmount(amountOrZero(order.getReferralClawedAmount()).add(actual));
+        orderService.updateById(order);
+        BigDecimal after = pendingPhase ? wallet.getPendingBalance() : wallet.getBalance();
+        transactionService.record(PlayerReferralRules.TX_REFERRAL, "PLAYER", order.getReferralPlayerId(),
+                actual.negate(), before, after, order.getId(), null, null,
+                "转介绍分成扣回，订单" + order.getOrderNo() + "，扣回¥" + actual.toPlainString());
+        log.info("转介绍分成扣回: orderId={}, playerId={}, amount={}", order.getId(), order.getReferralPlayerId(), actual);
     }
 
     /** PRIMARY + playerId，取最新一条（与结算监听一致）。 */

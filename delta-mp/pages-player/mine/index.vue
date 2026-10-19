@@ -35,6 +35,11 @@
       <view class="menu-list">
         <view class="menu-item" @click="go('/pages-player/withdraw/list')"><image class="menu-icon" src="/static/icons/暂无纪录.svg" mode="aspectFit" /><text>提现记录</text><text class="arrow">›</text></view>
         <view class="menu-item" @click="go('/pages-player/account/list')"><image class="menu-icon" src="/static/icons/理财.svg" mode="aspectFit" /><text>提现账户</text><text class="arrow">›</text></view>
+        <view class="menu-item" @click="go('/pages-player/referral/list')">
+          <image class="menu-icon" src="/static/icons/分享.svg" mode="aspectFit" />
+          <text>转介绍客户</text>
+          <text class="arrow">›</text>
+        </view>
         <view class="menu-item" @click="go('/pages-player/invite/list')">
           <image class="menu-icon" src="/pages-player/static/icons/分享.svg" mode="aspectFit" />
           <text>邀请列表</text>

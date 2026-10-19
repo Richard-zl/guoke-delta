@@ -7,7 +7,10 @@ import com.delta.order.entity.Order;
 import com.delta.order.entity.OrderPlayer;
 import com.delta.order.service.OrderPlayerService;
 import com.delta.order.service.OrderService;
+import com.delta.player.entity.PlayerReferral;
 import com.delta.player.entity.PlayerWallet;
+import com.delta.player.service.PlayerReferralRules;
+import com.delta.player.service.PlayerReferralService;
 import com.delta.player.service.PlayerWalletService;
 import com.delta.system.service.SysConfigService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,7 @@ public class SettlementEventListener {
     private final OrderService orderService;
     private final OrderPlayerService orderPlayerService;
     private final PlayerWalletService playerWalletService;
+    private final PlayerReferralService playerReferralService;
     private final SysConfigService sysConfigService;
 
     @EventListener
@@ -61,6 +65,8 @@ public class SettlementEventListener {
         BigDecimal orderAmount = order.getAmount();
         BigDecimal commission = orderAmount.multiply(commissionRate).setScale(2, RoundingMode.HALF_UP);
         BigDecimal playerTotalIncome = orderAmount.subtract(commission);
+        // 介绍费从俱乐部抽成里出，不改变打手池
+        applyReferral(order, orderAmount, commission);
 
         Long primaryPlayerId = order.getPlayerId();
 
@@ -123,6 +129,27 @@ public class SettlementEventListener {
         log.info("订单待入账完成: orderId={}, 订单金额={}, 抽成={}, 打手总收入={}, 主打手实得={}, 队友数={}, settleAvailableAt={}",
                 orderId, orderAmount, commission, playerTotalIncome, primaryIncome, teammates.size(),
                 order.getSettleAvailableAt());
+    }
+
+    /**
+     * 客户有有效介绍人且介绍人状态正常时，把介绍费记入待入账并快照到订单。
+     * 没有绑定、介绍人冻结或介绍费为 0 时不改订单。
+     */
+    private void applyReferral(Order order, BigDecimal orderAmount, BigDecimal commission) {
+        PlayerReferral binding = playerReferralService.activeForSettlement(order.getUserId());
+        if (binding == null) {
+            return;
+        }
+        BigDecimal fee = PlayerReferralRules.referralFee(orderAmount, binding.getRate(), commission);
+        if (fee.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        creditPending(binding.getPlayerId(), fee, order.getId(),
+                String.format("转介绍分成，订单%s，介绍费¥%s", order.getOrderNo(), fee.toPlainString()));
+        order.setReferralPlayerId(binding.getPlayerId());
+        order.setReferralRate(binding.getRate());
+        order.setReferralAmount(fee);
+        order.setReferralClawedAmount(BigDecimal.ZERO);
     }
 
     /**

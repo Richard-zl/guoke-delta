@@ -161,6 +161,9 @@ public class PlayerOrderController {
             if (player != null && "FROZEN".equals(player.getStatus())) {
                 return R.fail("账号已被冻结，冻结期间无法接单");
             }
+            if (player != null && "RESIGNED".equals(player.getStatus())) {
+                return R.fail("账号已离职，无法接单");
+            }
             return R.fail("打手状态不允许接单");
         }
         if (!Integer.valueOf(1).equals(player.getIsOnline())) {

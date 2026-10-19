@@ -7,9 +7,10 @@ import com.delta.order.entity.Order;
 public interface OrderService extends IService<Order> {
     Order createOrder(Long userId, CreateOrderRequest request);
     void cancelOrder(Long orderId, Long userId);
-    void csCancelOrder(Long orderId, Long operatorId);
-    /** 审核通过后执行全额退款（仅 PAID / ASSIGNED） */
-    void refundAfterReview(Long orderId, Long operatorId);
+    /** 订单列表直接退款。reason 必须是允许的退款原因。 */
+    void csCancelOrder(Long orderId, Long operatorId, String reason);
+    /** 审核通过后执行全额退款（仅 PAID / ASSIGNED），reason 为客服选择的退款原因 */
+    void refundAfterReview(Long orderId, Long operatorId, String reason);
     void assignOrder(Long orderId, Long playerId);
     void assignOrder(Long orderId, Long playerId, Long playerId2, String operatorType, Long operatorId);
     void acceptOrder(Long orderId, Long playerId);
