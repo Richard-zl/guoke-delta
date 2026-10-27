@@ -20,6 +20,7 @@ import com.delta.player.entity.PlayerReferral;
 import com.delta.player.entity.PlayerWallet;
 import com.delta.player.entity.Withdraw;
 import com.delta.player.service.PlayerFundRules;
+import com.delta.player.service.PlayerReentryRules;
 import com.delta.player.service.PlayerReferralRules;
 import com.delta.player.service.PlayerReferralService;
 import com.delta.player.service.PlayerService;
@@ -286,11 +287,7 @@ public class AdminPlayerController {
             throw new BusinessException(block);
         }
         // 释放 openid，离职后同一微信可以重新入驻
-        String openid = player.getOpenid() == null ? "" : player.getOpenid();
-        String released = openid + "#resigned#" + id;
-        if (released.length() > 64) {
-            released = released.substring(released.length() - 64);
-        }
+        String released = PlayerReentryRules.releasedOpenid(player.getOpenid(), id);
         playerService.update(new LambdaUpdateWrapper<Player>()
                 .eq(Player::getId, id)
                 .set(Player::getOpenid, released)

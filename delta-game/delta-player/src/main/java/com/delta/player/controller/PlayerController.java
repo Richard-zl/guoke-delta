@@ -6,6 +6,7 @@ import com.delta.common.utils.ImageListUtils;
 import com.delta.player.dto.PlayerProfileVO;
 import com.delta.player.entity.Player;
 import com.delta.player.entity.PlayerWallet;
+import com.delta.player.service.PlayerReentryRules;
 import com.delta.player.service.PlayerService;
 import com.delta.player.service.PlayerWalletService;
 import com.delta.pay.service.PaymentService;
@@ -13,6 +14,7 @@ import com.delta.user.entity.User;
 import com.delta.user.service.UserService;
 import com.delta.system.service.SysConfigService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -65,6 +67,7 @@ public class PlayerController {
     }
 
     @PostMapping("/apply")
+    @Transactional(rollbackFor = Exception.class)
     public R<Void> apply(@RequestBody Player player) {
         Long userId = SecurityUtils.getUserId();
         boolean depositRequired = "true".equals(sysConfigService.getConfigValue("player.deposit_required", "true"));
@@ -77,14 +80,14 @@ public class PlayerController {
                 return R.fail("押金支付无效或未到账，请完成支付后再提交");
             }
         }
-        Player existing = playerService.getById(userId);
+        User user = userService.getById(userId);
+        if (user == null) return R.fail("用户不存在");
+        // 按 openid 找在册打手。离职删除后逻辑删除行对 getById 不可见，不能再用用户 ID 当主键去插入。
+        Player existing = playerService.getByOpenid(user.getOpenid());
         player.setProofImages(ImageListUtils.normalize(player.getProofImages()));
         if (existing == null) {
-            // 从用户表获取基本信息
-            User user = userService.getById(userId);
-            if (user == null) return R.fail("用户不存在");
-            // 新用户申请，插入新记录
-            player.setId(userId);
+            boolean idTaken = playerService.idTakenIncludingDeleted(userId);
+            player.setId(PlayerReentryRules.playerIdForInsert(userId, idTaken));
             player.setOpenid(user.getOpenid());
             if (player.getNickname() == null) player.setNickname(user.getNickname());
             if (player.getAvatar() == null) player.setAvatar(user.getAvatar());
@@ -93,11 +96,17 @@ public class PlayerController {
             player.setAvgRating(BigDecimal.ZERO);
             player.setCompleteRate(BigDecimal.ZERO);
             player.setDepositPaymentNo(depositPaymentNo);
+            // 旧删除逻辑可能没改写 openid，先腾出来再插入
+            playerService.releaseDeletedOpenid(user.getOpenid());
             playerService.save(player);
+            // 新 ID 用不上旧钱包，补一条空钱包
+            if (player.getId() != null && !player.getId().equals(userId)
+                    && playerWalletService.getByPlayerId(player.getId()) == null) {
+                playerWalletService.initWallet(player.getId());
+            }
         } else {
-            // 已有记录，更新资料重新提交
-            player.setId(userId);
-            player.setOpenid(null); // 不允许修改openid
+            player.setId(existing.getId());
+            player.setOpenid(null);
             player.setStatus("PENDING");
             player.setRejectReason(null);
             player.setDepositPaymentNo(depositPaymentNo);

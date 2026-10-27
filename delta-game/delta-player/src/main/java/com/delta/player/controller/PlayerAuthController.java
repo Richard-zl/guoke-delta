@@ -91,6 +91,8 @@ public class PlayerAuthController {
             if (existing != null) {
                 return R.fail("已存在申请记录，当前状态：" + existing.getStatus());
             }
+            // 退店删除后旧行可能仍占着 openid
+            playerService.releaseDeletedOpenid(openid);
             Player player = new Player();
             player.setOpenid(openid);
             player.setNickname("");
