@@ -50,6 +50,15 @@
           <text class="discount-tag">-¥{{ Number(order?.couponDiscountAmount || 0).toFixed(2) }}</text>
         </view>
       </view>
+      <view v-else-if="Number(order?.memberDiscountAmount) > 0" class="coupon-section readonly">
+        <view class="coupon-left">
+          <text class="coupon-label">会员折扣</text>
+          <text class="coupon-value">{{ order.memberLevelName || '会员' }}折扣</text>
+        </view>
+        <view class="coupon-right">
+          <text class="discount-tag">-¥{{ Number(order.memberDiscountAmount).toFixed(2) }}</text>
+        </view>
+      </view>
 
       <view class="btn-pay" :class="{ disabled: expired || paying }" @click="handlePay">
         <image class="btn-icon" src="/static/icons/钞票.svg" mode="aspectFit" />

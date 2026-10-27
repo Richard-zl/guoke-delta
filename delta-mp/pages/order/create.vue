@@ -9,23 +9,30 @@
       <PriceText :value="finalAmount" :size="36" />
     </view>
 
-    <!-- 价格明细：原价 → 会员折 → 优惠券 → 应付 -->
+    <!-- 价格明细：会员折扣和优惠券只生效更优惠的一个 -->
     <view class="section price-breakdown">
       <view class="section-title">价格明细</view>
       <view class="price-row">
         <text class="price-label">原价</text>
         <text class="price-value">¥{{ formatMoney(originalAmount) }}</text>
       </view>
-      <view class="price-row" v-if="memberDiscountApplied">
+      <view class="price-row" v-if="memberDiscountApplied" :class="{ muted: !memberDiscountActive }">
         <text class="price-label">{{ memberLevelName }} ×{{ memberDiscountRate }}</text>
-        <text class="price-value discount">-¥{{ formatMoney(memberDiscountAmount) }}</text>
+        <text class="price-value" :class="memberDiscountActive ? 'discount' : 'skipped'">
+          {{ memberDiscountActive ? `-¥${formatMoney(memberDiscountAmount)}` : '未生效' }}
+        </text>
       </view>
       <view class="price-row tip" v-else-if="memberDiscountSkipTip">
         <text class="price-label tip-text">{{ memberDiscountSkipTip }}</text>
       </view>
-      <view class="price-row" v-if="selectedCoupon && couponDiscountAmount > 0">
+      <view class="price-row" v-if="selectedCoupon && couponSavings > 0" :class="{ muted: !couponActive }">
         <text class="price-label">{{ couponDiscountLabel }}</text>
-        <text class="price-value discount">-¥{{ formatMoney(couponDiscountAmount) }}</text>
+        <text class="price-value" :class="couponActive ? 'discount' : 'skipped'">
+          {{ couponActive ? `-¥${formatMoney(couponSavings)}` : '未生效' }}
+        </text>
+      </view>
+      <view class="price-row tip" v-if="discountChoiceTip">
+        <text class="price-label tip-text">{{ discountChoiceTip }}</text>
       </view>
       <view class="price-row total-row">
         <text class="price-label">应付</text>
@@ -43,7 +50,7 @@
       <view class="coupon-left">
         <text class="coupon-label">优惠券</text>
         <text class="coupon-value" v-if="selectedCoupon">
-          {{ selectedCoupon.couponName }} 省 ¥{{ formatMoney(couponDiscountAmount) }}
+          {{ selectedCoupon.couponName }}{{ couponActive ? ` 省 ¥${formatMoney(couponSavings)}` : ' 本次不使用' }}
         </text>
         <text class="coupon-value" v-else>有{{ availableCoupons.length }}张优惠券可用</text>
       </view>
@@ -218,13 +225,24 @@ const amountAfterMember = computed(() => {
 const memberDiscountAmount = computed(() => {
   return Number((originalAmount.value - amountAfterMember.value).toFixed(2))
 })
-const couponDiscountAmount = computed(() => {
+// 券按原价单独算，和会员折扣比，只生效更省的一个
+const couponSavings = computed(() => {
   if (!selectedCoupon.value) return 0
-  return calcDiscountAmount(amountAfterMember.value, selectedCoupon.value)
+  return calcDiscountAmount(originalAmount.value, selectedCoupon.value)
 })
+const couponActive = computed(() => {
+  return !!selectedCoupon.value && couponSavings.value > memberDiscountAmount.value
+})
+const memberDiscountActive = computed(() => memberDiscountApplied.value && !couponActive.value)
 const finalAmount = computed(() => {
-  if (!selectedCoupon.value) return amountAfterMember.value
-  return calcFinalAmount(amountAfterMember.value, selectedCoupon.value)
+  if (couponActive.value) return calcFinalAmount(originalAmount.value, selectedCoupon.value)
+  return amountAfterMember.value
+})
+const discountChoiceTip = computed(() => {
+  if (!selectedCoupon.value || !memberDiscountApplied.value || couponSavings.value <= 0) return ''
+  if (couponActive.value) return '优惠券更优惠，会员折扣本次不生效'
+  if (couponSavings.value === memberDiscountAmount.value) return '优惠相同，已使用会员折扣，优惠券保留'
+  return '会员折扣更优惠，优惠券本次不使用，可下次再用'
 })
 const couponDiscountLabel = computed(() => {
   if (!selectedCoupon.value) return '优惠券'
@@ -332,8 +350,8 @@ async function loadAvailableCoupons() {
     return
   }
   try {
-    // 券门槛按等级折后金额
-    const res = await getAvailableCoupons({ amount: amountAfterMember.value })
+    // 券按原价判断门槛，和会员折扣分开比
+    const res = await getAvailableCoupons({ amount: originalAmount.value })
     availableCoupons.value = res.data || []
     // 从商品详情页带入的 couponId，自动选中
     if (couponId.value && !selectedCouponId.value) {
@@ -521,12 +539,16 @@ async function submitOrder() {
       }
     }
     let payUrl = `/pages/order/pay?orderId=${res.data.id}&amount=${Number(finalAmount.value.toFixed(2))}`
-    if (selectedCouponId.value) {
+    if (couponActive.value && selectedCouponId.value) {
       payUrl += `&couponId=${selectedCouponId.value}`
-      payUrl += `&discountAmount=${couponDiscountAmount.value}`
+      payUrl += `&discountAmount=${couponSavings.value}`
       if (selectedCoupon.value?.couponName) {
         payUrl += `&couponName=${encodeURIComponent(selectedCoupon.value.couponName)}`
       }
+    } else if (memberDiscountActive.value && memberDiscountAmount.value > 0) {
+      const levelName = memberLevelName.value || '会员'
+      payUrl += `&discountAmount=${memberDiscountAmount.value}`
+      payUrl += `&benefitName=${encodeURIComponent(levelName + '折扣')}`
     }
     uni.redirectTo({ url: payUrl })
   } catch (e) {
@@ -553,8 +575,10 @@ async function submitOrder() {
     font-size: 26rpx;
     color: #64748b;
     .price-value.discount { color: #ff4544; }
+    .price-value.skipped { color: #94a3b8; font-size: 24rpx; }
     .price-value.total { color: #1e293b; font-weight: 600; font-size: 30rpx; }
     .tip-text { color: #94a3b8; font-size: 24rpx; }
+    &.muted .price-label { color: #94a3b8; }
   }
   .total-row {
     margin-top: 8rpx;

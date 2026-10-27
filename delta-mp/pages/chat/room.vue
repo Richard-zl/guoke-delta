@@ -1,5 +1,7 @@
 <template>
-  <view class="chat-room" :class="{ 'toolbar-open': showToolbar }">
+  <!-- 审核期默认不渲染输入栏，避免首屏闪出「输入消息 / 发送」 -->
+  <AuditPlaceholder v-if="pageBlocked" />
+  <view v-else class="chat-room" :class="{ 'toolbar-open': showToolbar }">
     <scroll-view scroll-y class="msg-list" :scroll-into-view="scrollAnchor" @scroll="onScroll">
       <view v-for="(m, idx) in messages" :key="m.id">
         <view v-if="showTimeSep(idx)" class="time-separator">
@@ -100,6 +102,11 @@ import { formatDateTime } from '@/utils/format'
 import { ORDER_STATUS_TEXT } from '@/utils/constants'
 import { USER_CHAT_SMS_REMINDERS, chooseChatSmsReminder } from '@/utils/chatSmsReminder'
 import { blockIfUnderReview } from '@/composables/useAuditGuard'
+import AuditPlaceholder from '@/components/AuditPlaceholder.vue'
+import { useAuditPageGuard } from '@/composables/useAuditPageGuard'
+
+// 首屏 pageBlocked 为 true，配置确认非审核期后才展示聊天室
+const { pageBlocked } = useAuditPageGuard()
 
 const chatStore = useChatStore()
 const userStore = useUserStore()

@@ -14,5 +14,7 @@ public record H5OrderView(Long orderId,
                            String status,
                            LocalDateTime payDeadline,
                            String couponName,
-                           BigDecimal couponDiscountAmount) {
+                           BigDecimal couponDiscountAmount,
+                           String memberLevelName,
+                           BigDecimal memberDiscountAmount) {
 }

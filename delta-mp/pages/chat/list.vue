@@ -1,5 +1,7 @@
 <template>
-  <view class="chat-list tab-page">
+  <!-- 审核期默认不渲染会话列表，避免审核员看到即时沟通界面 -->
+  <AuditPlaceholder v-if="pageBlocked" />
+  <view v-else class="chat-list tab-page">
     <canvas type="2d" id="goldDust" class="gold-dust-canvas"></canvas>
     <scroll-view scroll-y class="session-scroll tab-page-scroll" :show-scrollbar="false">
       <view v-for="s in sessions" :key="s.id" class="session-item" @click="goRoom(s)">
@@ -32,6 +34,11 @@ import { useChatStore } from '@/store/chat'
 import { formatRelativeTime } from '@/utils/format'
 import { useGoldDust } from '@/composables/useGoldDust'
 import { blockIfUnderReview } from '@/composables/useAuditGuard'
+import AuditPlaceholder from '@/components/AuditPlaceholder.vue'
+import { useAuditPageGuard } from '@/composables/useAuditPageGuard'
+
+// 首屏 pageBlocked 为 true，配置确认非审核期后才展示会话
+const { pageBlocked } = useAuditPageGuard()
 useGoldDust()
 const chatStore = useChatStore()
 const sessions = ref([])

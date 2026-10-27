@@ -64,11 +64,11 @@
     },
     {
       "path": "pages/chat/list",
-      "style": { "navigationBarTitleText": "消息", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+      "style": { "navigationBarTitleText": "消息", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
     },
     {
       "path": "pages/chat/room",
-      "style": { "navigationBarTitleText": "聊天", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9", "initialRenderingCache": "static" }
+      "style": { "navigationBarTitleText": "消息", "navigationBarTextStyle": "black", "backgroundColor": "#f1f5f9", "backgroundColorTop": "#f1f5f9", "backgroundColorBottom": "#f1f5f9" }
     },
     {
       "path": "pages/message/index",

@@ -87,7 +87,9 @@ public class H5PayController {
                 order.getStatus(),
                 order.getPayDeadline(),
                 couponView.getCouponName(),
-                couponView.getCouponDiscountAmount());
+                couponView.getCouponDiscountAmount(),
+                order.getMemberLevelName(),
+                order.getMemberDiscountAmount());
         return R.ok(view);
     }
 

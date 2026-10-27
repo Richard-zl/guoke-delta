@@ -92,7 +92,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         // 1.2 体验单限购：分类级周期内仅可购买一单（待支付不计入）
         trialOrderService.validateTrialOrderForCreate(userId, product);
 
-        // 2. 服务端计价：规格单价 × 数量 → 会员等级折 → 优惠券 → 应付金额
+        // 2. 服务端计价：规格单价 × 数量 → 会员折扣与优惠券二选一（更优惠的生效）
         var variants = productVariantService.listActiveByProductId(product.getId());
         OrderPriceResolver.PriceBreakdown pricing = OrderPriceResolver.resolve(
                 product, variants, req.getVariantId(), req.getQuantity());
@@ -101,13 +101,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         // 体验单不可使用优惠券
         trialOrderService.validateNoCoupon(product, req.getCouponId());
 
-        // 会员等级折扣
+        // 会员折扣、优惠券都按原价单独计算，只生效优惠更多的一个。相同则用会员折扣，券不核销。
         MemberDiscountResult memberDiscount = memberDiscountService.applyLevelDiscount(subtotal, userId, product);
-        BigDecimal amountAfterMember = memberDiscount.getAmountAfterMemberDiscount();
+        BigDecimal memberOff = memberDiscount.getDiscountAmount() == null
+                ? BigDecimal.ZERO : memberDiscount.getDiscountAmount();
 
-        BigDecimal finalAmount = amountAfterMember;
-        Long userCouponId = null;
-        BigDecimal couponDiscountAmount = BigDecimal.ZERO;
+        Coupon coupon = null;
         if (req.getCouponId() != null) {
             UserCoupon userCoupon = userCouponMapper.selectById(req.getCouponId());
             if (userCoupon == null || !userId.equals(userCoupon.getUserId())) {
@@ -119,17 +118,43 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             if (userCoupon.getExpireTime().isBefore(now)) {
                 throw new BusinessException("优惠券已过期");
             }
-            Coupon coupon = couponMapper.selectById(userCoupon.getCouponId());
+            coupon = couponMapper.selectById(userCoupon.getCouponId());
             if (coupon == null || coupon.getStatus() != 1) {
                 throw new BusinessException("优惠券不存在");
             }
-            // 券门槛按等级折后金额校验
-            if (coupon.getMinAmount().compareTo(amountAfterMember) > 0) {
+            if (coupon.getMinAmount() != null && coupon.getMinAmount().compareTo(subtotal) > 0) {
                 throw new BusinessException("订单金额未达到优惠券使用门槛");
             }
-            finalAmount = applyCouponDiscount(amountAfterMember, coupon);
-            couponDiscountAmount = amountAfterMember.subtract(finalAmount);
+        }
+
+        BigDecimal couponFinal = subtotal;
+        BigDecimal couponOff = BigDecimal.ZERO;
+        if (coupon != null) {
+            couponFinal = applyCouponDiscount(subtotal, coupon);
+            couponOff = subtotal.subtract(couponFinal);
+            if (couponOff.signum() < 0) {
+                couponOff = BigDecimal.ZERO;
+            }
+        }
+        boolean useCoupon = coupon != null && couponOff.compareTo(memberOff) > 0;
+
+        BigDecimal finalAmount;
+        Long userCouponId;
+        BigDecimal couponDiscountAmount;
+        BigDecimal appliedMemberRate;
+        BigDecimal appliedMemberAmount;
+        if (useCoupon) {
+            finalAmount = couponFinal;
             userCouponId = req.getCouponId();
+            couponDiscountAmount = couponOff;
+            appliedMemberRate = BigDecimal.ONE;
+            appliedMemberAmount = BigDecimal.ZERO;
+        } else {
+            finalAmount = memberDiscount.getAmountAfterMemberDiscount();
+            userCouponId = null;
+            couponDiscountAmount = BigDecimal.ZERO;
+            appliedMemberRate = memberDiscount.getDiscountRate();
+            appliedMemberAmount = memberOff;
         }
 
         // 校验客户端提交的应付金额与服务端计算一致
@@ -151,8 +176,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         order.setVariantId(pricing.getVariantId());
         order.setVariantName(pricing.getVariantName());
         order.setOriginalAmount(subtotal);
-        order.setMemberDiscountRate(memberDiscount.getDiscountRate());
-        order.setMemberDiscountAmount(memberDiscount.getDiscountAmount());
+        order.setMemberDiscountRate(appliedMemberRate);
+        order.setMemberDiscountAmount(appliedMemberAmount);
         order.setMemberLevelName(memberDiscount.getLevelName());
         order.setCouponDiscountAmount(couponDiscountAmount);
         order.setAmount(finalAmount);

@@ -3,18 +3,18 @@
     <view class="amount-area">
       <text class="label">支付金额</text>
       <PriceText :value="finalAmount" :size="60" />
-      <text v-if="appliedCouponName && discountAmount > 0" class="discount-info">
-        {{ appliedCouponName }} 已优惠 ¥{{ discountAmount }}
+      <text v-if="benefitName && discountAmount > 0" class="discount-info">
+        {{ benefitName }} 已优惠 ¥{{ discountAmount }}
       </text>
       <text v-if="countdown > 0" class="countdown">支付剩余时间 {{ formatCountdown }}</text>
       <text v-else-if="expired" class="countdown expired">订单已超时</text>
     </view>
 
     <!-- 优惠券：下单时已绑定，支付页只读展示 -->
-    <view v-if="appliedCouponName" class="coupon-section readonly">
+    <view v-if="benefitName" class="coupon-section readonly">
       <view class="coupon-left">
-        <text class="coupon-label">优惠券</text>
-        <text class="coupon-value">{{ appliedCouponName }}</text>
+        <text class="coupon-label">{{ benefitLabel }}</text>
+        <text class="coupon-value">{{ benefitName }}</text>
       </view>
       <view class="coupon-right">
         <text class="discount-tag">-¥{{ discountAmount }}</text>
@@ -60,7 +60,8 @@ const { openWeworkCs } = useWeworkCs()
 const orderId = ref(0)
 const finalAmount = ref(0)
 const discountAmount = ref(0)
-const appliedCouponName = ref('')
+const benefitName = ref('')
+const benefitLabel = ref('优惠')
 const canUseWechatPay = isMpWeixin()
 const payType = ref(canUseWechatPay ? 'WECHAT' : 'BALANCE')
 const walletBalance = ref('0.00')
@@ -80,7 +81,13 @@ onLoad(async (opts) => {
   orderId.value = opts.orderId
   finalAmount.value = parseFloat(opts.amount) || 0
   discountAmount.value = parseFloat(opts.discountAmount) || 0
-  appliedCouponName.value = opts.couponName ? decodeURIComponent(opts.couponName) : ''
+  if (opts.couponName) {
+    benefitName.value = decodeURIComponent(opts.couponName)
+    benefitLabel.value = '优惠券'
+  } else if (opts.benefitName) {
+    benefitName.value = decodeURIComponent(opts.benefitName)
+    benefitLabel.value = '会员折扣'
+  }
 
   try {
     const orderRes = await getOrderDetail(orderId.value)
@@ -88,9 +95,14 @@ onLoad(async (opts) => {
     if (order) {
       finalAmount.value = order.amount || finalAmount.value
       // 从订单详情补全优惠券信息（如从订单详情页「去支付」进入）
-      if (!appliedCouponName.value && order.couponName) {
-        appliedCouponName.value = order.couponName
+      if (Number(order.couponDiscountAmount) > 0 && order.couponName) {
+        benefitName.value = order.couponName
+        benefitLabel.value = '优惠券'
         discountAmount.value = Number(order.couponDiscountAmount || 0)
+      } else if (Number(order.memberDiscountAmount) > 0) {
+        benefitName.value = `${order.memberLevelName || '会员'}折扣`
+        benefitLabel.value = '会员折扣'
+        discountAmount.value = Number(order.memberDiscountAmount || 0)
       }
       if (order.status !== 'PENDING_PAYMENT') {
         handleOrderNotPending(order.status)

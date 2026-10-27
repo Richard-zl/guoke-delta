@@ -13,19 +13,27 @@
       <view v-if="order.unitPrice != null" class="info-row"><text class="label">单价</text><text class="value">¥{{ formatMoney(order.unitPrice) }}</text></view>
       <view v-if="order.quantity > 1" class="info-row"><text class="label">数量</text><text class="value">{{ order.quantity }}</text></view>
 
-      <!-- 价格明细：有优惠券时展示原价 / 优惠 / 实付 -->
-      <view v-if="hasCoupon" class="price-breakdown">
+      <!-- 价格明细：优惠券和会员折扣只生效一个 -->
+      <view v-if="hasCoupon || hasMemberDiscount" class="price-breakdown">
         <view class="price-row">
           <text class="price-label">商品原价</text>
           <text class="price-original">¥{{ formatMoney(order.originalAmount) }}</text>
         </view>
-        <view class="coupon-strip">
+        <view v-if="hasCoupon" class="coupon-strip">
           <view class="coupon-strip-badge">券</view>
           <view class="coupon-strip-info">
             <text class="coupon-strip-name">{{ order.couponName }}</text>
             <text class="coupon-strip-desc">{{ couponTypeLabel }}</text>
           </view>
           <text class="coupon-strip-discount">-¥{{ formatMoney(order.couponDiscountAmount) }}</text>
+        </view>
+        <view v-else class="coupon-strip">
+          <view class="coupon-strip-badge">折</view>
+          <view class="coupon-strip-info">
+            <text class="coupon-strip-name">{{ order.memberLevelName || '会员' }}折扣</text>
+            <text class="coupon-strip-desc">会员等级折扣</text>
+          </view>
+          <text class="coupon-strip-discount">-¥{{ formatMoney(order.memberDiscountAmount) }}</text>
         </view>
         <view class="price-divider" />
         <view class="price-row total">
@@ -176,6 +184,10 @@ const progressList = ref([])
 const hasCoupon = computed(() => {
   const o = order.value
   return o && o.couponName && Number(o.couponDiscountAmount) > 0
+})
+const hasMemberDiscount = computed(() => {
+  const o = order.value
+  return o && !hasCoupon.value && Number(o.memberDiscountAmount) > 0
 })
 
 const couponTypeLabel = computed(() => {
