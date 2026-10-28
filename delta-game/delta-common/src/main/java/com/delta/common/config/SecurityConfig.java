@@ -5,6 +5,7 @@ import com.delta.common.security.handler.AccessDeniedHandlerImpl;
 import com.delta.common.security.handler.AuthenticationEntryPointImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpMethod;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -60,6 +61,10 @@ public class SecurityConfig {
                 .requestMatchers("/common/chat/**").hasAnyRole("ADMIN", "CS", "USER")
                 // 聊天记录: 管理员和客服均可查看
                 .requestMatchers("/admin/chat/**").hasAnyRole("ADMIN", "CS")
+                // 客服可调整用户余额、发放和失效优惠券；积分仍仅管理员
+                .requestMatchers(HttpMethod.PUT, "/admin/user/*/balance").hasAnyRole("ADMIN", "CS")
+                .requestMatchers(HttpMethod.POST, "/admin/user/*/coupon").hasAnyRole("ADMIN", "CS")
+                .requestMatchers(HttpMethod.PUT, "/admin/user/*/coupons/*/revoke").hasAnyRole("ADMIN", "CS")
                 // 角色权限控制: /admin/** 和 /system/** 仅管理员可访问
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 // 快捷回复: 管理员和客服均可访问

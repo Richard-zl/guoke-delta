@@ -56,12 +56,12 @@
         </div>
         <div class="header-right">
           <el-tag v-if="isStaging" type="warning" effect="dark" size="small" class="staging-tag">测试环境</el-tag>
-          <div class="chat-notify" @click="goChat" title="客服消息">
+          <div v-if="showChat" class="chat-notify" @click="goChat" title="客服消息">
             <el-icon :size="20"><ChatDotRound /></el-icon>
             <span v-if="chatStore.globalUnread > 0" class="notify-badge">{{ chatStore.globalUnread > 99 ? '99+' : chatStore.globalUnread }}</span>
           </div>
-          <el-tag :type="role === 'admin' ? 'danger' : 'warning'" size="small" class="role-tag">
-            {{ role === 'admin' ? '管理员' : '客服' }}
+          <el-tag :type="roleTagType(role)" size="small" class="role-tag">
+            {{ roleLabel(role) }}
           </el-tag>
           <el-dropdown @command="handleCommand">
             <span class="user-info">
@@ -99,6 +99,7 @@ import EnvBanner from '@/components/EnvBanner.vue'
 import { useChatStore } from '@/stores/chat'
 import { useSiteStore } from '@/stores/site'
 import { isStagingEnv } from '@/utils/env'
+import { canUseChat, roleLabel, roleTagType } from '@/utils/role'
 
 const route = useRoute()
 const router = useRouter()
@@ -110,6 +111,7 @@ const isStaging = isStagingEnv()
 const isCollapse = ref(false)
 const nickname = computed(() => userStore.nickname)
 const role = computed(() => userStore.role)
+const showChat = computed(() => canUseChat(role.value))
 const logoInitial = computed(() => {
   const title = siteStore.adminTitle || siteStore.siteName || '护'
   return title.trim().slice(0, 1)
@@ -164,7 +166,7 @@ function goChat() {
 }
 
 onMounted(() => {
-  chatStore.start()
+  if (showChat.value) chatStore.start()
 })
 onUnmounted(() => {
   chatStore.stop()

@@ -38,7 +38,9 @@
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="avatar" label="头像" width="70"><template #default="{ row }"><el-avatar :src="row.avatar" :size="36" /></template></el-table-column>
         <el-table-column prop="nickname" label="昵称" width="120" />
-        <el-table-column prop="phone" label="手机号" width="130" />
+        <el-table-column label="手机号" width="130">
+          <template #default="{ row }">{{ formatPhone(row.phone, maskPhone) }}</template>
+        </el-table-column>
         <el-table-column prop="balance" label="余额" width="100"><template #default="{ row }"><span class="balance-text">¥{{ row.balance || 0 }}</span></template></el-table-column>
         <el-table-column prop="points" label="当前积分" width="100"><template #default="{ row }"><span class="points-text">{{ formatPoints(row.points) }}</span></template></el-table-column>
         <el-table-column prop="totalPoints" label="总积分" width="100"><template #default="{ row }">{{ formatPoints(row.totalPoints) }}</template></el-table-column>
@@ -53,14 +55,14 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="80"><template #default="{ row }"><el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">{{ row.status === 1 ? '正常' : '封禁' }}</el-tag></template></el-table-column>
         <el-table-column prop="createdAt" label="注册时间" width="170" />
-        <el-table-column label="操作" :width="isAdmin ? 430 : 300" fixed="right">
+        <el-table-column label="操作" :width="actionWidth" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="showDetail(row.id)">详情</el-button>
             <el-button link type="info" @click="showUserOrders(row)">订单</el-button>
-            <el-button link type="warning" @click="openCouponDialog(row)">优惠券</el-button>
-            <el-button v-if="isAdmin" link type="warning" @click="openBalanceDialog(row)">余额</el-button>
-            <el-button v-if="isAdmin" link type="success" @click="openPointsDialog(row)">积分</el-button>
-            <el-popconfirm :title="row.status === 1 ? '确认封禁该用户？' : '确认解封该用户？'" @confirm="handleToggleStatus(row)">
+            <el-button v-if="showCoupon" link type="warning" @click="openCouponDialog(row)">优惠券</el-button>
+            <el-button v-if="showBalance" link type="warning" @click="openBalanceDialog(row)">余额</el-button>
+            <el-button v-if="showPoints" link type="success" @click="openPointsDialog(row)">积分</el-button>
+            <el-popconfirm v-if="showBan" :title="row.status === 1 ? '确认封禁该用户？' : '确认解封该用户？'" @confirm="handleToggleStatus(row)">
               <template #reference><el-button link :type="row.status === 1 ? 'danger' : 'success'">{{ row.status === 1 ? '封禁' : '解封' }}</el-button></template>
             </el-popconfirm>
           </template>
@@ -74,7 +76,7 @@
       <el-descriptions :column="2" border v-if="detailData" v-loading="detailLoading">
         <el-descriptions-item label="ID">{{ detailData.user?.id }}</el-descriptions-item>
         <el-descriptions-item label="昵称">{{ detailData.user?.nickname }}</el-descriptions-item>
-        <el-descriptions-item label="手机号">{{ detailData.user?.phone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="手机号">{{ formatPhone(detailData.user?.phone, maskPhone) }}</el-descriptions-item>
         <el-descriptions-item label="状态"><el-tag :type="detailData.user?.status === 1 ? 'success' : 'danger'" size="small">{{ detailData.user?.status === 1 ? '正常' : '封禁' }}</el-tag></el-descriptions-item>
         <el-descriptions-item label="余额">¥{{ detailData.wallet?.balance || 0 }}</el-descriptions-item>
         <el-descriptions-item label="当前积分">{{ formatPoints(detailData.user?.points) }}</el-descriptions-item>
@@ -204,7 +206,7 @@
           <el-radio-button value="USED">已使用</el-radio-button>
           <el-radio-button value="EXPIRED">已过期</el-radio-button>
         </el-radio-group>
-        <el-button v-if="isAdmin" type="primary" size="small" @click="openGrantDialog">+ 发放优惠券</el-button>
+        <el-button v-if="showCoupon" type="primary" size="small" @click="openGrantDialog">+ 发放优惠券</el-button>
       </div>
       <el-table :data="couponList" v-loading="couponLoading" stripe size="small">
         <el-table-column prop="couponName" label="券名称" min-width="120" show-overflow-tooltip />
@@ -221,7 +223,7 @@
         </el-table-column>
         <el-table-column prop="createdAt" label="发放时间" width="160" />
         <el-table-column prop="expireTime" label="过期时间" width="160" />
-        <el-table-column v-if="isAdmin" label="操作" width="80" fixed="right">
+        <el-table-column v-if="showCoupon" label="操作" width="80" fixed="right">
           <template #default="{ row }">
             <el-popconfirm
               v-if="row.effectiveStatus === 'UNUSED'"
@@ -283,11 +285,21 @@ import {
   csUserList, csUserDetail, csUserUpdateStatus, csOrderList, csUserCouponList
 } from '@/api/business'
 import { useUserStore } from '@/stores/user'
+import {
+  useAdminApi, canAdjustUserBalance, canAdjustUserPoints, canOperateUserCoupon,
+  canBanUser, shouldMaskUserPhone, formatPhone
+} from '@/utils/role'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
 
 const userStore = useUserStore()
-const isAdmin = userStore.role === 'admin'
+const adminApi = useAdminApi(userStore.role)
+const showBalance = canAdjustUserBalance(userStore.role)
+const showPoints = canAdjustUserPoints(userStore.role)
+const showCoupon = canOperateUserCoupon(userStore.role)
+const showBan = canBanUser(userStore.role)
+const maskPhone = shouldMaskUserPhone(userStore.role)
+const actionWidth = showPoints ? 430 : showBalance ? 360 : 160
 const loading = ref(false), list = ref([]), total = ref(0)
 const dateRange = ref(null)
 const levelOptions = [
@@ -382,7 +394,7 @@ function resetQuery() {
 async function fetchData() {
   loading.value = true
   try {
-    const fn = isAdmin ? adminUserList : csUserList
+    const fn = adminApi ? adminUserList : csUserList
     const res = await fn(buildUserParams())
     list.value = res.data.records; total.value = Number(res.data.total)
   } finally { loading.value = false }
@@ -390,7 +402,7 @@ async function fetchData() {
 
 async function handleToggleStatus(row) {
   const newStatus = row.status === 1 ? 0 : 1
-  const fn = isAdmin ? adminUserUpdateStatus : csUserUpdateStatus
+  const fn = adminApi ? adminUserUpdateStatus : csUserUpdateStatus
   await fn(row.id, newStatus)
   ElMessage.success('操作成功'); fetchData()
 }
@@ -406,7 +418,7 @@ const detailCouponCount = computed(() => {
 async function showDetail(id) {
   detailVisible.value = true; detailLoading.value = true; detailData.value = null
   try {
-    const res = isAdmin ? await adminUserDetail(id) : await csUserDetail(id)
+    const res = adminApi ? await adminUserDetail(id) : await csUserDetail(id)
     detailData.value = res.data
   } finally { detailLoading.value = false }
 }
@@ -427,7 +439,7 @@ async function fetchUserOrders() {
   if (!ordersQuery.userId) return
   ordersLoading.value = true
   try {
-    const fn = isAdmin ? adminOrderList : csOrderList
+    const fn = adminApi ? adminOrderList : csOrderList
     const res = await fn({
       pageNum: ordersQuery.pageNum,
       pageSize: ordersQuery.pageSize,
@@ -579,7 +591,7 @@ async function fetchUserCoupons() {
   if (!couponQuery.userId) return
   couponLoading.value = true
   try {
-    const fn = isAdmin ? adminUserCouponList : csUserCouponList
+    const fn = adminApi ? adminUserCouponList : csUserCouponList
     const params = {
       pageNum: couponQuery.pageNum,
       pageSize: couponQuery.pageSize

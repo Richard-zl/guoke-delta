@@ -503,7 +503,8 @@ const METRIC_TIPS = {
 }
 
 const userStore = useUserStore()
-const isAdmin = computed(() => userStore.role === 'admin')
+// 客服看工作台，其余角色看经营数据
+const isAdmin = computed(() => userStore.role !== 'cs')
 const loading = ref(false)
 const stats = ref({})
 

@@ -21,7 +21,7 @@
         <el-table-column prop="nickname" label="昵称" />
         <el-table-column prop="role" label="角色">
           <template #default="{ row }">
-            <el-tag :type="row.role === 'admin' ? 'danger' : 'warning'" size="small">{{ row.role === 'admin' ? '管理员' : '客服' }}</el-tag>
+            <el-tag :type="roleTagType(row.role)" size="small">{{ roleLabel(row.role) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="phone" label="手机号" />
@@ -54,7 +54,9 @@
         </el-form-item>
         <el-form-item label="昵称" prop="nickname"><el-input v-model="form.nickname" /></el-form-item>
         <el-form-item label="角色" prop="role">
-          <el-select v-model="form.role"><el-option label="管理员" value="admin" /><el-option label="客服" value="cs" /></el-select>
+          <el-select v-model="form.role">
+            <el-option v-for="item in ROLE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
         </el-form-item>
         <el-form-item label="手机号"><el-input v-model="form.phone" /></el-form-item>
         <el-form-item label="状态">
@@ -72,6 +74,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { getAdminList, addAdmin, updateAdmin, deleteAdmin } from '@/api/system'
+import { ROLE_OPTIONS, roleLabel, roleTagType } from '@/utils/role'
 import { formatDateTime } from '@/utils'
 import { ElMessage } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'

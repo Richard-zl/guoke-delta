@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { login as loginApi } from '@/api/auth'
 import { getToken, setToken, removeToken, getUserInfo, setUserInfo } from '@/utils/auth'
+import { normalizeRole } from '@/utils/role'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(getToken() || '')
@@ -11,13 +12,9 @@ export const useUserStore = defineStore('user', () => {
   const role = ref(getUserInfo()?.role || '')
 
   async function login(loginForm) {
-    // 发送标准化角色: admin → "ADMIN", cs → "CS"
-    const payload = { ...loginForm }
-    payload.role = payload.role === 'admin' ? 'ADMIN' : 'CS'
-    const res = await loginApi(payload)
+    const res = await loginApi({ username: loginForm.username, password: loginForm.password })
     const { token: t, adminId: id, nickname: name, avatar: av, role: r } = res.data
-    // 后端返回有效角色 ADMIN/CS，映射为前端值 admin/cs (兼容旧值 BOTH)
-    const mappedRole = (r === 'ADMIN' || r === 'BOTH') ? 'admin' : 'cs'
+    const mappedRole = normalizeRole(r)
     token.value = t
     adminId.value = id
     nickname.value = name

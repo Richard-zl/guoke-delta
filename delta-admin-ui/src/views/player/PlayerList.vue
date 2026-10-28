@@ -66,7 +66,7 @@
         <el-table-column label="操作" width="520" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="showDetail(row.id)">详情</el-button>
-            <el-button link type="primary" @click="openEditDialog(row)">{{ isAdmin ? '编辑' : '改名' }}</el-button>
+            <el-button link type="primary" @click="openEditDialog(row)">{{ adminApi ? '编辑' : '改名' }}</el-button>
             <el-button link type="info" @click="showPlayerOrders(row)">订单</el-button>
             <template v-if="row.status === 'PENDING'">
               <el-button link type="success" @click="handleApprove(row.id)">通过</el-button>
@@ -76,9 +76,9 @@
             <el-popconfirm v-if="row.status === 'FROZEN'" title="确认解冻？" @confirm="handleUnfreeze(row.id)">
               <template #reference><el-button link type="success">解冻</el-button></template>
             </el-popconfirm>
-            <template v-if="isAdmin">
+            <template v-if="adminApi">
               <el-button v-if="row.status === 'ACTIVE' || row.status === 'FROZEN'" link type="primary" @click="openReferral(row)">转介绍</el-button>
-              <el-button link type="warning" @click="openFundDialog(row)">资金调整</el-button>
+              <el-button v-if="canAdjustFund" link type="warning" @click="openFundDialog(row)">资金调整</el-button>
               <el-button v-if="row.status === 'ACTIVE' || row.status === 'FROZEN'" link type="danger" @click="handleResign(row)">离职</el-button>
               <el-button v-if="row.status === 'RESIGNED'" link type="danger" @click="handleDelete(row)">删除</el-button>
             </template>
@@ -153,12 +153,12 @@
       </div>
     </el-dialog>
     <!-- 打手编辑弹窗 -->
-    <el-dialog v-model="editVisible" :title="isAdmin ? '编辑打手信息' : '修改昵称'" width="400px">
+    <el-dialog v-model="editVisible" :title="adminApi ? '编辑打手信息' : '修改昵称'" width="400px">
       <el-form :model="editForm" label-width="80px">
         <el-form-item label="昵称">
           <el-input v-model="editForm.nickname" placeholder="请输入昵称" maxlength="20" />
         </el-form-item>
-        <template v-if="isAdmin">
+        <template v-if="adminApi">
           <el-form-item label="真实姓名">
             <el-input v-model="editForm.realName" placeholder="请输入真实姓名" maxlength="20" />
           </el-form-item>
@@ -315,11 +315,13 @@
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { adminPlayerList, adminPlayerDetail, adminPlayerTransactions, adminPlayerApprove, adminPlayerReject, adminPlayerUpdateStatus, adminPlayerFreeze, adminPlayerUnfreeze, adminPlayerUpdate, adminPlayerAdjustBalance, adminPlayerResign, adminPlayerDelete, adminReferralSearch, adminPlayerReferrals, adminPlayerBindReferral, adminPlayerUpdateReferral, adminPlayerUnbindReferral, csPlayerList, csPlayerDetail, csPlayerTransactions, csPlayerAudit, csPlayerFreeze, csPlayerUpdateNickname, adminOrderList, csOrderList } from '@/api/business'
 import { useUserStore } from '@/stores/user'
+import { useAdminApi, canAdjustPlayerFund } from '@/utils/role'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
 import { WORK_STATUS_OPTIONS, workStatusMeta, formatActiveOrders, isPlayerRowDimmed } from '@/utils/playerWorkStatus'
 const userStore = useUserStore()
-const isAdmin = userStore.role === 'admin'
+const adminApi = useAdminApi(userStore.role)
+const canAdjustFund = canAdjustPlayerFund(userStore.role)
 const loading = ref(false), list = ref([]), total = ref(0)
 const query = reactive({ pageNum: 1, pageSize: 10, keyword: '', status: '', workStatus: 'AVAILABLE' })
 const lastUpdatedAt = ref(null)
@@ -339,7 +341,7 @@ function statusTagType(s) { return statusTagMap[s] || '' }
 async function fetchData({ silent = false } = {}) {
   if (!silent) loading.value = true
   try {
-    const fn = isAdmin ? adminPlayerList : csPlayerList
+    const fn = adminApi ? adminPlayerList : csPlayerList
     const res = await fn(query)
     list.value = res.data?.records || []
     total.value = Number(res.data?.total || 0)
@@ -369,14 +371,14 @@ function stopPolling() {
   pollTimer = null
 }
 async function handleApprove(id) {
-  if (isAdmin) await adminPlayerApprove(id)
+  if (adminApi) await adminPlayerApprove(id)
   else await csPlayerAudit(id, 'ACTIVE', '')
   ElMessage.success('已通过'); fetchData()
 }
 const rejectDialogVisible = ref(false), rejectId = ref(null), rejectReason = ref('')
 function openRejectDialog(id) { rejectId.value = id; rejectReason.value = ''; rejectDialogVisible.value = true }
 async function handleReject() {
-  if (isAdmin) await adminPlayerReject(rejectId.value, rejectReason.value)
+  if (adminApi) await adminPlayerReject(rejectId.value, rejectReason.value)
   else await csPlayerAudit(rejectId.value, 'REJECTED', rejectReason.value)
   ElMessage.success('已驳回'); rejectDialogVisible.value = false; fetchData()
 }
@@ -398,13 +400,13 @@ async function handleFreeze() {
   }
   freezeSubmitting.value = true
   try {
-    if (isAdmin) await adminPlayerFreeze(freezeRow.value.id, { frozenUntil })
+    if (adminApi) await adminPlayerFreeze(freezeRow.value.id, { frozenUntil })
     else await csPlayerFreeze(freezeRow.value.id)
     ElMessage.success('已冻结'); freezeVisible.value = false; fetchData()
   } finally { freezeSubmitting.value = false }
 }
 async function handleUnfreeze(id) {
-  if (isAdmin) await adminPlayerUnfreeze(id)
+  if (adminApi) await adminPlayerUnfreeze(id)
   else await adminPlayerUpdateStatus(id, 'ACTIVE')
   ElMessage.success('已解冻'); fetchData()
 }
@@ -439,7 +441,7 @@ async function fetchPlayerTransactions() {
   transactionLoading.value = true
   try {
     const params = { pageNum: transactionQuery.pageNum, pageSize: transactionQuery.pageSize }
-    const fn = isAdmin ? adminPlayerTransactions : csPlayerTransactions
+    const fn = adminApi ? adminPlayerTransactions : csPlayerTransactions
     const res = await fn(transactionQuery.playerId, params)
     playerTransactions.value = res.data?.records || []
     transactionTotal.value = Number(res.data?.total || 0)
@@ -456,7 +458,7 @@ async function showDetail(id) {
   playerTransactions.value = []
   transactionTotal.value = 0
   try {
-    const detailFn = isAdmin ? adminPlayerDetail : csPlayerDetail
+    const detailFn = adminApi ? adminPlayerDetail : csPlayerDetail
     await Promise.all([
       detailFn(id).then(res => { detailData.value = res.data }),
       fetchPlayerTransactions()
@@ -481,7 +483,7 @@ async function handleEditSave() {
   if (!editForm.id) return
   editSaving.value = true
   try {
-    if (isAdmin) {
+    if (adminApi) {
       await adminPlayerUpdate(editForm.id, {
         nickname: editForm.nickname,
         realName: editForm.realName,
@@ -534,7 +536,7 @@ async function fetchPlayerOrders() {
   try {
     const params = { pageNum: ordersQuery.pageNum, pageSize: ordersQuery.pageSize }
     if (ordersQuery.playerId) params.playerId = ordersQuery.playerId
-    const fn = isAdmin ? adminOrderList : csOrderList
+    const fn = adminApi ? adminOrderList : csOrderList
     const res = await fn(params)
     playerOrders.value = res.data?.records || []
     ordersTotal.value = Number(res.data?.total || 0)

@@ -288,13 +288,15 @@ import { ref, reactive, onMounted } from 'vue'
 import { adminOrderList, adminOrderDetail, adminOrderAssign, adminOrderRefund, adminOrderConfirm, adminOrderProgress, playerAssignList, csOrderList, csOrderDetail, csOrderAssign, csOrderRefund, csOrderConfirm, csOrderProgress, adminUserList, csUserList } from '@/api/business'
 import { getProductList } from '@/api/product'
 import { useUserStore } from '@/stores/user'
+import { useAdminApi, shouldMaskUserPhone, formatPhone } from '@/utils/role'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
 import { workStatusMeta, formatActiveOrders, isPlayerSelectable, isPlayerRowDimmed, guardPlayerSelection } from '@/utils/playerWorkStatus'
 import { exportCsv, fetchAllRecords } from '@/utils/exportTable'
 
 const userStore = useUserStore()
-const isAdmin = userStore.role === 'admin'
+const adminApi = useAdminApi(userStore.role)
+const maskPhone = shouldMaskUserPhone(userStore.role)
 
 // 兼容后端大写和前端小写枚举
 const orderStatusMap = {
@@ -342,7 +344,7 @@ const query = reactive({
 })
 
 function formatUserLabel(u) {
-  const phone = u.phone ? ` (${u.phone})` : ''
+  const phone = u.phone ? ` (${formatPhone(u.phone, maskPhone)})` : ''
   return `${u.nickname || '用户'}${phone} / ID: ${u.id}`
 }
 
@@ -383,7 +385,7 @@ async function searchUsers(keyword) {
   }
   userSearchLoading.value = true
   try {
-    const fn = isAdmin ? adminUserList : csUserList
+    const fn = adminApi ? adminUserList : csUserList
     const res = await fn({ pageNum: 1, pageSize: 20, keyword })
     userOptions.value = res.data?.records || []
   } finally {
@@ -495,7 +497,7 @@ function applyQuick(type) {
 async function fetchData() {
   loading.value = true
   try {
-    const fn = isAdmin ? adminOrderList : csOrderList
+    const fn = adminApi ? adminOrderList : csOrderList
     const res = await fn(buildOrderParams())
     list.value = res.data.records; total.value = Number(res.data.total)
   } finally { loading.value = false }
@@ -570,7 +572,7 @@ async function copyDispatchInfo(row) {
 async function handleExport() {
   exporting.value = true
   try {
-    const fn = isAdmin ? adminOrderList : csOrderList
+    const fn = adminApi ? adminOrderList : csOrderList
     const { records, truncated } = await fetchAllRecords(fn, buildOrderParams())
     if (!records.length) {
       ElMessage.warning('没有可导出的订单')
@@ -600,8 +602,8 @@ const confirmLoading = ref(false)
 async function showDetail(id) {
   detailVisible.value = true; detailLoading.value = true; detail.value = null; progressList.value = []
   try {
-    const detailFn = isAdmin ? adminOrderDetail : csOrderDetail
-    const progressFn = isAdmin ? adminOrderProgress : csOrderProgress
+    const detailFn = adminApi ? adminOrderDetail : csOrderDetail
+    const progressFn = adminApi ? adminOrderProgress : csOrderProgress
     const [detailRes, progressRes] = await Promise.all([detailFn(id), progressFn(id)])
     detail.value = detailRes.data
     progressList.value = progressRes.data || []
@@ -611,7 +613,7 @@ async function handleConfirm(row) {
   await ElMessageBox.confirm('确定手动结单？订单将变为已确认状态。', '结单确认', { type: 'warning' })
   confirmLoading.value = true
   try {
-    const fn = isAdmin ? adminOrderConfirm : csOrderConfirm
+    const fn = adminApi ? adminOrderConfirm : csOrderConfirm
     await fn(row.id)
     ElMessage.success('结单成功')
     await showDetail(row.id)
@@ -752,7 +754,7 @@ async function submitAssign() {
   }
   const msg = `确认指派？\n主接打手：${formatSelectedPlayer(selectedMainPlayerName.value, selectedMainPlayer.value)}\n辅助打手：${selectedAssistPlayer.value ? formatSelectedPlayer(selectedAssistPlayerName.value, selectedAssistPlayer.value) : '无'}`
   await ElMessageBox.confirm(msg, '指派确认', { type: 'info' })
-  const assignFn = isAdmin ? adminOrderAssign : csOrderAssign
+  const assignFn = adminApi ? adminOrderAssign : csOrderAssign
   await assignFn(assignOrderId.value, selectedMainPlayer.value, selectedAssistPlayer.value)
   ElMessage.success(assignMode.value === 'reassign' ? '重新指派成功' : '指派成功')
   assignVisible.value = false
@@ -799,7 +801,7 @@ async function submitRefund() {
   }
   refundSubmitting.value = true
   try {
-    const fn = isAdmin ? adminOrderRefund : csOrderRefund
+    const fn = adminApi ? adminOrderRefund : csOrderRefund
     await fn(refundOrderId.value, remark)
     ElMessage.success('退款已提交')
     refundVisible.value = false

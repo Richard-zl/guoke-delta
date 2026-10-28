@@ -3,8 +3,11 @@ package com.delta.system.aspect;
 import com.delta.common.annotation.OpLog;
 import com.delta.common.mapper.CrossModuleMapper;
 import com.delta.common.security.utils.SecurityUtils;
+import com.delta.system.entity.Admin;
 import com.delta.system.entity.OperationLog;
+import com.delta.system.service.AdminService;
 import com.delta.system.service.OperationLogService;
+import com.delta.system.support.AdminRoleCodes;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +35,7 @@ public class OpLogAspect {
 
     private final OperationLogService operationLogService;
     private final CrossModuleMapper crossModuleMapper;
+    private final AdminService adminService;
 
     @AfterReturning(pointcut = "@annotation(opLog)", returning = "result")
     public void afterReturning(JoinPoint joinPoint, OpLog opLog, Object result) {
@@ -51,10 +55,12 @@ public class OpLogAspect {
         // 操作者信息
         try {
             Long userId = SecurityUtils.getUserId();
-            String userType = SecurityUtils.getUserType();
             record.setOperatorId(userId);
-            record.setOperatorType(userType);
-            String nickname = crossModuleMapper.selectAdminNickname(userId);
+            Admin admin = adminService.getById(userId);
+            String roleCode = admin == null ? "" : AdminRoleCodes.toCode(admin.getRole());
+            record.setOperatorType(roleCode.isEmpty() ? SecurityUtils.getUserType() : roleCode);
+            String nickname = admin != null && admin.getNickname() != null && !admin.getNickname().isBlank()
+                    ? admin.getNickname() : crossModuleMapper.selectAdminNickname(userId);
             record.setOperatorName(nickname != null ? nickname : "ID:" + userId);
         } catch (Exception e) {
             record.setOperatorType("UNKNOWN");

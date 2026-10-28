@@ -12,12 +12,6 @@
         <el-form-item prop="password">
           <el-input v-model="form.password" type="password" placeholder="密码" prefix-icon="Lock" show-password @keyup.enter="handleLogin" />
         </el-form-item>
-        <el-form-item prop="role">
-          <el-radio-group v-model="form.role" class="role-group">
-            <el-radio value="admin">管理员</el-radio>
-            <el-radio value="cs">客服</el-radio>
-          </el-radio-group>
-        </el-form-item>
         <el-form-item>
           <el-button class="login-btn" :loading="loading" @click="handleLogin">登 录</el-button>
         </el-form-item>
@@ -43,11 +37,10 @@ const isStaging = isStagingEnv()
 
 const formRef = ref(null)
 const loading = ref(false)
-const form = reactive({ username: '', password: '', role: 'admin' })
+const form = reactive({ username: '', password: '' })
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-  role: [{ required: true, message: '请选择角色', trigger: 'change' }]
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
 async function handleLogin() {
@@ -157,21 +150,6 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
   color: rgba(255, 255, 255, 0.4);
   margin-bottom: 32px;
   font-size: 14px;
-}
-.role-group {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  :deep(.el-radio) {
-    color: rgba(255, 255, 255, 0.7);
-  }
-  :deep(.el-radio__input.is-checked + .el-radio__label) {
-    color: #d4af37;
-  }
-  :deep(.el-radio__input.is-checked .el-radio__inner) {
-    border-color: #d4af37;
-    background: #d4af37;
-  }
 }
 .login-btn {
   width: 100%;

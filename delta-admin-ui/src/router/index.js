@@ -19,7 +19,7 @@ const routes = [
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/dashboard/index.vue'),
-        meta: { title: '仪表盘', icon: 'Odometer', roles: ['admin', 'cs'] }
+        meta: { title: '仪表盘', icon: 'Odometer', roles: ['admin', 'cs', 'operator', 'manager'] }
       }
     ]
   },
@@ -28,43 +28,43 @@ const routes = [
     path: '/product',
     component: Layout,
     redirect: '/product/list',
-    meta: { title: '商品管理', icon: 'Goods', roles: ['admin'] },
+    meta: { title: '商品管理', icon: 'Goods', roles: ['admin', 'operator', 'manager'] },
     children: [
       {
         path: 'list',
         name: 'ProductList',
         component: () => import('@/views/product/ProductList.vue'),
-        meta: { title: '商品列表', roles: ['admin'] }
+        meta: { title: '商品列表', roles: ['admin', 'operator', 'manager'] }
       },
       {
         path: 'category',
         name: 'CategoryList',
         component: () => import('@/views/product/CategoryList.vue'),
-        meta: { title: '分类管理', roles: ['admin'] }
+        meta: { title: '分类管理', roles: ['admin', 'operator', 'manager'] }
       },
       {
         path: 'recommend-category',
         name: 'RecommendCategoryList',
         component: () => import('@/views/product/RecommendCategoryList.vue'),
-        meta: { title: '热门分类管理', roles: ['admin'] }
+        meta: { title: '热门分类管理', roles: ['admin', 'operator', 'manager'] }
       },
       {
         path: 'form-fields',
         name: 'CategoryFieldList',
         component: () => import('@/views/product/CategoryFieldList.vue'),
-        meta: { title: '下单字段配置', roles: ['admin'] }
+        meta: { title: '下单字段配置', roles: ['admin', 'operator', 'manager'] }
       },
       {
         path: 'create',
         name: 'ProductCreate',
         component: () => import('@/views/product/ProductForm.vue'),
-        meta: { title: '新增商品', roles: ['admin'], hidden: true }
+        meta: { title: '新增商品', roles: ['admin', 'operator', 'manager'], hidden: true }
       },
       {
         path: 'edit/:id',
         name: 'ProductEdit',
         component: () => import('@/views/product/ProductForm.vue'),
-        meta: { title: '编辑商品', roles: ['admin'], hidden: true }
+        meta: { title: '编辑商品', roles: ['admin', 'operator', 'manager'], hidden: true }
       }
     ]
   },
@@ -73,13 +73,13 @@ const routes = [
     path: '/order',
     component: Layout,
     redirect: '/order/list',
-    meta: { title: '订单管理', icon: 'List', roles: ['admin', 'cs'] },
+    meta: { title: '订单管理', icon: 'List', roles: ['admin', 'cs', 'operator', 'manager'] },
     children: [
       {
         path: 'list',
         name: 'OrderList',
         component: () => import('@/views/order/OrderList.vue'),
-        meta: { title: '订单列表', roles: ['admin', 'cs'] }
+        meta: { title: '订单列表', roles: ['admin', 'cs', 'operator', 'manager'] }
       }
     ]
   },
@@ -88,19 +88,19 @@ const routes = [
     path: '/user',
     component: Layout,
     redirect: '/user/list',
-    meta: { title: '用户管理', icon: 'User', roles: ['admin', 'cs'] },
+    meta: { title: '用户管理', icon: 'User', roles: ['admin', 'cs', 'operator', 'manager'] },
     children: [
       {
         path: 'list',
         name: 'UserList',
         component: () => import('@/views/user/UserList.vue'),
-        meta: { title: '用户列表', roles: ['admin', 'cs'] }
+        meta: { title: '用户列表', roles: ['admin', 'cs', 'operator', 'manager'] }
       },
       {
         path: 'spending-rank',
         name: 'SpendingRank',
         component: () => import('@/views/user/SpendingRank.vue'),
-        meta: { title: '消费榜单', roles: ['admin', 'cs'] }
+        meta: { title: '消费榜单', roles: ['admin', 'cs', 'operator', 'manager'] }
       }
     ]
   },
@@ -109,19 +109,19 @@ const routes = [
     path: '/player',
     component: Layout,
     redirect: '/player/list',
-    meta: { title: '打手管理', icon: 'Avatar', roles: ['admin', 'cs'] },
+    meta: { title: '打手管理', icon: 'Avatar', roles: ['admin', 'cs', 'manager'] },
     children: [
       {
         path: 'list',
         name: 'PlayerList',
         component: () => import('@/views/player/PlayerList.vue'),
-        meta: { title: '打手列表', roles: ['admin', 'cs'] }
+        meta: { title: '打手列表', roles: ['admin', 'cs', 'manager'] }
       },
       {
         path: 'showcase',
         name: 'PlayerShowcase',
         component: () => import('@/views/player/PlayerShowcase.vue'),
-        meta: { title: '打手风采', roles: ['admin'] }
+        meta: { title: '打手风采', roles: ['admin', 'manager'] }
       }
     ]
   },
@@ -130,13 +130,13 @@ const routes = [
     path: '/statistics',
     component: Layout,
     redirect: '/statistics/income-daily',
-    meta: { title: '数据统计', icon: 'DataAnalysis', roles: ['admin'] },
+    meta: { title: '数据统计', icon: 'DataAnalysis', roles: ['admin', 'manager'] },
     children: [
       {
         path: 'income-daily',
         name: 'IncomeDaily',
         component: () => import('@/views/statistics/IncomeDaily.vue'),
-        meta: { title: '收益日报', roles: ['admin'] }
+        meta: { title: '收益日报', roles: ['admin', 'manager'] }
       }
     ]
   },
@@ -149,7 +149,7 @@ const routes = [
         path: '',
         name: 'ComplaintList',
         component: () => import('@/views/complaint/ComplaintList.vue'),
-        meta: { title: '投诉处理', icon: 'Warning', roles: ['admin', 'cs'] }
+        meta: { title: '投诉处理', icon: 'Warning', roles: ['admin', 'cs', 'manager'] }
       }
     ]
   },

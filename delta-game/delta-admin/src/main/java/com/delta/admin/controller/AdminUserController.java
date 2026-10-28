@@ -22,8 +22,11 @@ import com.delta.user.service.PointsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -111,15 +114,22 @@ public class AdminUserController {
         walletService.updateById(wallet);
 
         String type = amount.compareTo(BigDecimal.ZERO) > 0 ? "ADMIN_RECHARGE" : "ADMIN_DEDUCT";
+        String action = amount.compareTo(BigDecimal.ZERO) > 0 ? "充值" : "扣款";
         transactionService.record(type, "USER", id, amount.abs(),
                 balanceBefore, balanceAfter, null, null, null,
-                "管理员调整: " + (remark.isEmpty() ? (amount.compareTo(BigDecimal.ZERO) > 0 ? "充值" : "扣款") : remark));
+                "管理员调整: " + (remark.isEmpty() ? action : remark));
 
         // 后台储值赠积分（扣款不加分）
         if (amount.compareTo(BigDecimal.ZERO) > 0) {
             pointsService.addPointsByRecharge(id, amount);
         }
 
+        String detail = action + " ¥" + money(amount.abs()) + "，" + userLabel(id)
+                + "，余额 " + money(balanceBefore) + " → " + money(balanceAfter);
+        if (!remark.isEmpty()) {
+            detail += "，原因：" + remark;
+        }
+        setOpLogDetail(detail);
         return R.ok();
     }
 
@@ -135,6 +145,7 @@ public class AdminUserController {
             throw new BusinessException("调整积分不能为0");
         }
         pointsService.adminAdjustCurrentPoints(id, points, remark);
+        setOpLogDetail(pointsDetail("当前积分", points, id, remark));
         return R.ok();
     }
 
@@ -150,6 +161,7 @@ public class AdminUserController {
             throw new BusinessException("调整积分不能为0");
         }
         pointsService.adminAdjustTotalPoints(id, points, remark);
+        setOpLogDetail(pointsDetail("总积分", points, id, remark));
         return R.ok();
     }
 
@@ -162,6 +174,7 @@ public class AdminUserController {
                                 @RequestParam Integer points,
                                 @RequestParam(required = false) String remark) {
         pointsService.adminAdjustPoints(id, points, remark);
+        setOpLogDetail(pointsDetail("当前积分和总积分", points, id, remark));
         return R.ok();
     }
 
@@ -174,13 +187,21 @@ public class AdminUserController {
                                @RequestParam(required = false) Long couponId,
                                @RequestParam(required = false) BigDecimal discountZhe,
                                @RequestParam(required = false) String remark) {
+        String couponText;
         if (discountZhe != null) {
             couponService.adminGrantDiscount(id, discountZhe, remark);
+            couponText = "发放 " + discountZhe.stripTrailingZeros().toPlainString() + " 折优惠券";
         } else if (couponId != null) {
             couponService.adminGrantCoupon(id, couponId, remark);
+            couponText = "发放优惠券模板 " + couponId;
         } else {
             throw new BusinessException("请选择折扣");
         }
+        String detail = couponText + "，" + userLabel(id);
+        if (remark != null && !remark.isBlank()) {
+            detail += "，原因：" + remark;
+        }
+        setOpLogDetail(detail);
         return R.ok();
     }
 
@@ -201,6 +222,37 @@ public class AdminUserController {
     @PutMapping("/{id}/coupons/{userCouponId}/revoke")
     public R<Void> revokeCoupon(@PathVariable Long id, @PathVariable Long userCouponId) {
         couponService.adminRevokeCoupon(id, userCouponId);
+        setOpLogDetail("失效优惠券，用户券ID:" + userCouponId + "，" + userLabel(id));
         return R.ok();
+    }
+
+    private String pointsDetail(String account, int points, Long userId, String remark) {
+        String action = points > 0 ? "增加" : "减少";
+        String detail = action + account + " " + Math.abs(points) + "，" + userLabel(userId);
+        if (remark != null && !remark.isBlank()) {
+            detail += "，原因：" + remark;
+        }
+        return detail;
+    }
+
+    private String userLabel(Long id) {
+        User user = userService.getById(id);
+        String name = user == null || user.getNickname() == null || user.getNickname().isBlank()
+                ? "用户" : user.getNickname();
+        return name + "（ID:" + id + "）";
+    }
+
+    private static String money(BigDecimal value) {
+        if (value == null) {
+            return "0.00";
+        }
+        return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private void setOpLogDetail(String detail) {
+        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs)) {
+            return;
+        }
+        attrs.getRequest().setAttribute("opLogDetail", detail);
     }
 }

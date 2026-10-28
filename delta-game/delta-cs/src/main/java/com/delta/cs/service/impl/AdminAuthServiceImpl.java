@@ -52,38 +52,39 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         if (!passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
             handleLoginFailure(admin, failKey, now);
         }
-        // 校验角色是否匹配
-        String requestedRole = request.getRole() != null ? request.getRole().toUpperCase() : "";
-        String dbRole = admin.getRole() != null ? admin.getRole().toUpperCase() : "";
-        if ("ADMIN".equals(requestedRole)) {
-            // 以管理员身份登录：DB role 必须是 BOTH 或 ADMIN
-            if (!"BOTH".equals(dbRole) && !"ADMIN".equals(dbRole)) {
-                throw new BusinessException("您没有管理员登录权限");
-            }
-        } else if ("CS".equals(requestedRole)) {
-            // 以客服身份登录：DB role 为 BOTH、ADMIN、CS 均可
-            if (!"BOTH".equals(dbRole) && !"ADMIN".equals(dbRole) && !"CS".equals(dbRole)) {
-                throw new BusinessException("您没有客服登录权限");
-            }
-        } else {
-            throw new BusinessException("无效的角色参数");
+        // 登录身份以账号角色为准，不再用手选角色
+        String accountRole = resolveAccountRole(admin.getRole());
+        if (accountRole.isEmpty()) {
+            throw new BusinessException("账号角色无效");
         }
         clearLockState(admin, failKey, true);
         admin.setLastLoginAt(now);
         adminService.updateById(admin);
-        // 有效角色：选admin→ADMIN, 选cs→CS
-        UserTypeEnum userType = "CS".equals(requestedRole) ? UserTypeEnum.CS : UserTypeEnum.ADMIN;
+        // 运营、店长沿用管理员接口；菜单和按钮在前端按账号角色收口
+        UserTypeEnum userType = "CS".equals(accountRole) ? UserTypeEnum.CS : UserTypeEnum.ADMIN;
         String token = tokenService.createToken(admin.getId(), userType);
-        // 记录登录日志到operation_log
-        String effectiveRole = "CS".equals(requestedRole) ? "CS" : "ADMIN";
-        recordLoginLog(admin, effectiveRole);
+        recordLoginLog(admin, accountRole);
         AdminLoginResponse resp = new AdminLoginResponse();
         resp.setToken(token);
         resp.setAdminId(admin.getId());
         resp.setNickname(admin.getNickname());
         resp.setAvatar(admin.getAvatar());
-        resp.setRole(effectiveRole);
+        resp.setRole(accountRole);
         return resp;
+    }
+
+    /** 账号角色：ADMIN / CS / OPERATOR / MANAGER。BOTH 视为管理员。 */
+    private String resolveAccountRole(String dbRole) {
+        if (dbRole == null) {
+            return "";
+        }
+        return switch (dbRole.trim().toLowerCase()) {
+            case "admin", "both" -> "ADMIN";
+            case "cs" -> "CS";
+            case "operator" -> "OPERATOR";
+            case "manager" -> "MANAGER";
+            default -> "";
+        };
     }
 
     private void handleLoginFailure(Admin admin, String failKey, LocalDateTime now) {

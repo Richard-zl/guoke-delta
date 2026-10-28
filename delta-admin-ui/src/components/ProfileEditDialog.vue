@@ -7,6 +7,15 @@
       <el-form-item label="头像">
         <ImageUpload v-model="form.avatar" />
       </el-form-item>
+      <el-form-item label="原密码">
+        <el-input v-model="form.oldPassword" type="password" show-password placeholder="不修改请留空" />
+      </el-form-item>
+      <el-form-item label="新密码">
+        <el-input v-model="form.newPassword" type="password" show-password placeholder="至少 6 位，不修改请留空" />
+      </el-form-item>
+      <el-form-item label="确认密码">
+        <el-input v-model="form.confirmPassword" type="password" show-password placeholder="再次输入新密码" />
+      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
@@ -33,7 +42,7 @@ watch(visible, (v) => { if (!v) emit('update:modelValue', false) })
 
 const formRef = ref(null)
 const loading = ref(false)
-const form = reactive({ nickname: '', avatar: '' })
+const form = reactive({ nickname: '', avatar: '', oldPassword: '', newPassword: '', confirmPassword: '' })
 
 watch(visible, async (v) => {
   if (v) {
@@ -42,6 +51,9 @@ watch(visible, async (v) => {
       const d = res.data
       form.nickname = d?.nickname || ''
       form.avatar = d?.avatar || ''
+      form.oldPassword = ''
+      form.newPassword = ''
+      form.confirmPassword = ''
     } catch (_) {}
   }
 })
@@ -55,9 +67,32 @@ async function handleSave() {
     ElMessage.warning('请输入昵称')
     return
   }
+  const oldPassword = form.oldPassword.trim()
+  const newPassword = form.newPassword.trim()
+  const confirmPassword = form.confirmPassword.trim()
+  const changingPassword = oldPassword || newPassword || confirmPassword
+  if (changingPassword) {
+    if (!oldPassword) {
+      ElMessage.warning('请输入原密码')
+      return
+    }
+    if (newPassword.length < 6) {
+      ElMessage.warning('新密码至少 6 位')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      ElMessage.warning('两次输入的新密码不一致')
+      return
+    }
+  }
   loading.value = true
   try {
-    await updateCsProfile({ nickname: form.nickname.trim(), avatar: form.avatar || undefined })
+    const payload = { nickname: form.nickname.trim(), avatar: form.avatar || undefined }
+    if (changingPassword) {
+      payload.oldPassword = oldPassword
+      payload.newPassword = newPassword
+    }
+    await updateCsProfile(payload)
     emit('saved', { nickname: form.nickname.trim(), avatar: form.avatar })
     ElMessage.success('保存成功')
     visible.value = false
