@@ -86,8 +86,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { csRefundList, csRefundApprove, csRefundReject } from '@/api/business'
+import { useOrderNotifyStore } from '@/stores/orderNotify'
 import { ElMessage } from 'element-plus'
 import Pagination from '@/components/Pagination.vue'
 
@@ -96,18 +98,29 @@ const statusTagType = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'dang
 const snapshotText = { PAID: '待接单', ASSIGNED: '已指派' }
 const approveReasons = ['无人接单', '下错订单', '更换订单', '客人原因', '投诉退款', '重复下单', '打手无法服务', '协商一致']
 
+const route = useRoute()
+const orderNotifyStore = useOrderNotifyStore()
+
 const loading = ref(false), list = ref([]), total = ref(0)
 const query = reactive({ pageNum: 1, pageSize: 10, status: '' })
 
-async function fetchData() {
-  loading.value = true
+async function fetchData(options = {}) {
+  if (!options.silent) loading.value = true
   try {
     const res = await csRefundList(query)
     list.value = res.data?.records ?? []
     total.value = Number(res.data?.total ?? 0)
   } catch (e) {
-    ElMessage.error(e?.message || '加载失败')
-  } finally { loading.value = false }
+    if (!options.silent) ElMessage.error(e?.message || '加载失败')
+  } finally {
+    if (!options.silent) loading.value = false
+  }
+}
+
+function showPending() {
+  query.pageNum = 1
+  query.status = 'PENDING'
+  fetchData()
 }
 
 const approveVisible = ref(false)
@@ -178,7 +191,18 @@ async function handleReject() {
   }
 }
 
-onMounted(fetchData)
+watch(() => orderNotifyStore.refundRefreshTick, () => {
+  fetchData({ silent: true })
+})
+
+watch(() => orderNotifyStore.refundFocusTick, () => {
+  showPending()
+})
+
+onMounted(() => {
+  if (route.query.status) query.status = String(route.query.status)
+  fetchData()
+})
 </script>
 
 <style scoped>

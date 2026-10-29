@@ -65,7 +65,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         // 心跳消息：只做应答，不落库、不推送
         if ("ping".equalsIgnoreCase(msgType)) {
             try {
-                session.sendMessage(new TextMessage("{\"type\":\"pong\"}"));
+                synchronized (session) {
+                    session.sendMessage(new TextMessage("{\"type\":\"pong\"}"));
+                }
             } catch (Exception e) {
                 log.warn("发送pong心跳失败", e);
             }
@@ -175,7 +177,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         WebSocketSession memberSession = sessionManager.get(key);
         if (memberSession != null && memberSession.isOpen()) {
             try {
-                memberSession.sendMessage(new TextMessage(msgJson));
+                synchronized (memberSession) {
+                    memberSession.sendMessage(new TextMessage(msgJson));
+                }
             } catch (IOException e) {
                 log.warn("推送消息到{}失败", key);
             }

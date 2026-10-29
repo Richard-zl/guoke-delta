@@ -83,6 +83,12 @@ export function canUseChat(role) {
   return value === 'admin' || value === 'cs'
 }
 
+/** 退款审核页：管理员、客服 */
+export function canReviewRefund(role) {
+  const value = normalizeRole(role)
+  return value === 'admin' || value === 'cs'
+}
+
 export function formatPhone(phone, masked) {
   if (!phone) return '-'
   const text = String(phone)

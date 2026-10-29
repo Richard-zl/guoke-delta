@@ -284,7 +284,9 @@
   </div>
 </template>
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { useOrderNotifyStore } from '@/stores/orderNotify'
 import { adminOrderList, adminOrderDetail, adminOrderAssign, adminOrderRefund, adminOrderConfirm, adminOrderProgress, playerAssignList, csOrderList, csOrderDetail, csOrderAssign, csOrderRefund, csOrderConfirm, csOrderProgress, adminUserList, csUserList } from '@/api/business'
 import { getProductList } from '@/api/product'
 import { useUserStore } from '@/stores/user'
@@ -295,6 +297,8 @@ import { workStatusMeta, formatActiveOrders, isPlayerSelectable, isPlayerRowDimm
 import { exportCsv, fetchAllRecords } from '@/utils/exportTable'
 
 const userStore = useUserStore()
+const route = useRoute()
+const orderNotifyStore = useOrderNotifyStore()
 const adminApi = useAdminApi(userStore.role)
 const maskPhone = shouldMaskUserPhone(userStore.role)
 
@@ -463,6 +467,26 @@ function resetQuery() {
   fetchData()
 }
 
+/** 从顶栏或支付提醒进入时，固定落到待指派，不走快捷筛选的来回切换 */
+function showUnassigned() {
+  activeQuick.value = 'unassigned'
+  query.pageNum = 1
+  query.orderNo = ''
+  query.status = ''
+  query.statusIn = ''
+  query.unassigned = true
+  query.userId = null
+  query.playerId = null
+  query.productId = null
+  query.createdAtStart = ''
+  query.createdAtEnd = ''
+  dateRange.value = null
+  userOptions.value = []
+  playerFilterOptions.value = []
+  productOptions.value = []
+  fetchData()
+}
+
 function applyQuick(type) {
   if (activeQuick.value === type) {
     resetQuery()
@@ -494,13 +518,15 @@ function applyQuick(type) {
   fetchData()
 }
 
-async function fetchData() {
-  loading.value = true
+async function fetchData(options = {}) {
+  if (!options.silent) loading.value = true
   try {
     const fn = adminApi ? adminOrderList : csOrderList
     const res = await fn(buildOrderParams())
     list.value = res.data.records; total.value = Number(res.data.total)
-  } finally { loading.value = false }
+  } finally {
+    if (!options.silent) loading.value = false
+  }
 }
 
 function formatOrderUser(row) {
@@ -813,7 +839,18 @@ async function submitRefund() {
   }
 }
 
-onMounted(fetchData)
+watch(() => orderNotifyStore.refreshTick, () => {
+  fetchData({ silent: true })
+})
+
+watch(() => orderNotifyStore.unassignedTick, () => {
+  showUnassigned()
+})
+
+onMounted(() => {
+  if (route.query.quick === 'unassigned') showUnassigned()
+  else fetchData()
+})
 </script>
 <style scoped>
 .search-form { margin-bottom: 12px; }

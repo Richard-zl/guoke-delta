@@ -56,7 +56,15 @@
         </div>
         <div class="header-right">
           <el-tag v-if="isStaging" type="warning" effect="dark" size="small" class="staging-tag">测试环境</el-tag>
-          <div v-if="showChat" class="chat-notify" @click="goChat" title="客服消息">
+          <div class="header-notify" @click="goOrders" title="新订单">
+            <el-icon :size="20"><Tickets /></el-icon>
+            <span v-if="orderNotifyStore.unread > 0" class="notify-badge">{{ orderNotifyStore.unread > 99 ? '99+' : orderNotifyStore.unread }}</span>
+          </div>
+          <div v-if="showRefund" class="header-notify" @click="goRefund" title="退款申请">
+            <el-icon :size="20"><Money /></el-icon>
+            <span v-if="orderNotifyStore.refundUnread > 0" class="notify-badge">{{ orderNotifyStore.refundUnread > 99 ? '99+' : orderNotifyStore.refundUnread }}</span>
+          </div>
+          <div v-if="showChat" class="header-notify" @click="goChat" title="客服消息">
             <el-icon :size="20"><ChatDotRound /></el-icon>
             <span v-if="chatStore.globalUnread > 0" class="notify-badge">{{ chatStore.globalUnread > 99 ? '99+' : chatStore.globalUnread }}</span>
           </div>
@@ -90,21 +98,23 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Fold, Expand, ArrowDown, ChatDotRound } from '@element-plus/icons-vue'
+import { Fold, Expand, ArrowDown, ChatDotRound, Tickets, Money } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import ProfileEditDialog from '@/components/ProfileEditDialog.vue'
 import EnvBanner from '@/components/EnvBanner.vue'
 import { useChatStore } from '@/stores/chat'
+import { useOrderNotifyStore } from '@/stores/orderNotify'
 import { useSiteStore } from '@/stores/site'
 import { isStagingEnv } from '@/utils/env'
-import { canUseChat, roleLabel, roleTagType } from '@/utils/role'
+import { canReviewRefund, canUseChat, roleLabel, roleTagType } from '@/utils/role'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const chatStore = useChatStore()
+const orderNotifyStore = useOrderNotifyStore()
 const siteStore = useSiteStore()
 
 const isStaging = isStagingEnv()
@@ -112,6 +122,7 @@ const isCollapse = ref(false)
 const nickname = computed(() => userStore.nickname)
 const role = computed(() => userStore.role)
 const showChat = computed(() => canUseChat(role.value))
+const showRefund = computed(() => canReviewRefund(role.value))
 const logoInitial = computed(() => {
   const title = siteStore.adminTitle || siteStore.siteName || '护'
   return title.trim().slice(0, 1)
@@ -165,11 +176,21 @@ function goChat() {
   router.push('/chat/service')
 }
 
-onMounted(() => {
-  if (showChat.value) chatStore.start()
+function goOrders() {
+  orderNotifyStore.openUnassigned()
+}
+
+function goRefund() {
+  orderNotifyStore.openRefund()
+}
+
+watch(() => route.fullPath, () => {
+  // 每个菜单是独立布局，进入订单页也不能把提醒连接断开
+  chatStore.start()
 })
-onUnmounted(() => {
-  chatStore.stop()
+
+onMounted(() => {
+  chatStore.start()
 })
 </script>
 
@@ -318,7 +339,7 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 12px;
-    .chat-notify {
+    .header-notify {
       position: relative;
       cursor: pointer;
       display: flex;

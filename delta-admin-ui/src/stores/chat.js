@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
-import { connectWebSocket, closeWebSocket, onWsMessage, onWsConnect, onWsClose } from '@/utils/websocket'
+import { connectWebSocket, closeWebSocket, onWsMessage, onWsConnect, onWsClose, isWsConnected } from '@/utils/websocket'
 import { getToken } from '@/utils/auth'
 import { ElNotification } from 'element-plus'
+import { useOrderNotifyStore } from '@/stores/orderNotify'
 
 export const useChatStore = defineStore('chat', () => {
   const connected = ref(false)
@@ -45,6 +46,16 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function _handleMessage(data) {
+    // 支付成功是业务推送，不进聊天未读
+    if (data?.type === 'ORDER_PAID') {
+      useOrderNotifyStore().onPaid(data)
+      return
+    }
+    if (data?.type === 'REFUND_REQUEST') {
+      useOrderNotifyStore().onRefund(data)
+      return
+    }
+
     // 更新最新消息（触发 watch）
     newMessage.value = data
 
@@ -71,9 +82,9 @@ export const useChatStore = defineStore('chat', () => {
 
   /** 启动全局 WebSocket 连接 */
   function start() {
-    if (_started) return
     const token = getToken()
     if (!token) return
+    if (_started && isWsConnected()) return
 
     _started = true
 
